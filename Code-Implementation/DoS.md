@@ -84,7 +84,7 @@ function enter() public {
 //谁都能进很快这个就会很长，应该改成mapping来解决这个问题.
 ```
 
-#### 2.恶意发钱导致DoS
+#### 2.恶意发钱导致DoS（Donation Attack）
 
 当出现assert/require核对总余额时需要注意，这种判断有潜在bug
 

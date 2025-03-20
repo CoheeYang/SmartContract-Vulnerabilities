@@ -332,6 +332,12 @@ contract TestToken is Token {
 
 <br/>
 
+关于更多foundry和echidna(medusa)的test suite对比以及test之间的转化可以参考：
+
+https://github.com/devdacian/solidity-fuzzing-comparison/tree/main
+
+<br/>
+
 #### Testing Coverage
 
 Echidna有一个非常强大的功能，语料库（Corpus），它能够自动记录每次测试的执行轨迹和覆盖情况（coverage）数据。为了生成corpus，你需要在配置文件中添加`corpusDir: <name-of-dirctory>`
@@ -427,7 +433,7 @@ Echidna虽然在多数情况的statefull fuzzing会比foundry更加顺手，但�
 
 不同于foundry丰富到爆炸的cheat-code，echidna所支持的cheat-code明显略逊一筹，甚至在某些场景都不够用。
 
-这是因为echidna虽然和foundry一样，是基于[HEVM](https://github.com/ethereum/hevm)的cheat-code，但是foundry在此之上也另外添加了更多功能，比如`hoax()`，`assume()`，和给代币充值的`deal()`等等。
+Echidna从2.05版本之后支持了cheat-code，虽然和foundry一样，是基于[HEVM](https://github.com/ethereum/hevm)的cheat-code，但是foundry在此之上也另外添加了更多功能，比如`hoax()`和给代币充值的`deal()`等等，而目前Echidna 2.2.6版本并没有此种功能。
 
 而echidna则只有原有的HEV所支持的cheat-code，而且应用需要先写出interface，再实例化一个hevm对象进行（类似vm.xxx），比如下方的`prank`
 
@@ -449,6 +455,8 @@ contract TestPrank {
 ````
 
 更多支持的cheatcode请参考[HEVM cheatcode]([https://hevm.dev/controlling-the-unit-testing-environment.html#cheat-codes](https://hevm.dev/std-test-tutorial.html#supported-cheat-codes).)
+
+echidna官方也提供了[HEVM接口](https://github.com/crytic/properties/blob/main/contracts/util/Hevm.sol)可以帮我们快速使用HEVM的功能
 
 有限的CheatCode带来了很多问题；比如最常见的是，如果你要fork测试一个和Uniswap v3对接的资产管理相关的协议，那么很自然的你会需要fork uniswap v3的代币池和相关代币的状态，但你测试时却没有给代币充值的作弊码，导致你测试中的角色根本没有token进行测试。
 
@@ -648,6 +656,10 @@ contract FuzzingTest2 {
 }
 ```
 
+但是这可能需要你去uniswap找你想换的token的pool地址，如果你知道链上有某个地址已经有满足量的token，你也可以去直接尝试用它的地址，之后去prank该地址即可。
+
+如果你认为这种方法太麻烦，也可以尝试直接拿uniswap合约mock出来一个dex交易所+mock代币合约，而不是直接fork以太坊上的合约状态。
+
 （我也曾经试过直接让我的echidna合约继承forge-std中有充值token的`deal()`函数的文件StdCheats.sol，但是我尝试后失败了，如果有尝试其他有效且更快方法的朋友欢迎PR）
 
 <br/>
@@ -675,6 +687,487 @@ library ConvertLib{
 
 
 
+### 2.2 Test Invariant like Pro
+
+#### 2.2.1 Toolings
+
+##### Fuzzing脚手架
+
+不论你测试哪个项目，你都会经历一个非常重复性的工作：setup。
+
+同时，不同测试工具（foundry/medsua/echidna）之间的切换也是个非常痛苦的过程。
+
+[Recon](https://getrecon.xyz/dashboard/build)提供了一个有效的脚手架工具解决了以上的两个痛点；Recon通过你将文件的ABI文档复制到Recon-build-your-handler网页来输出一个结构化测试脚手架；
+
+它需要[chimera](https://github.com/Recon-Fuzz/chimera)，一个非常简单的模板工具，作为依赖。
+
+而输出的主要由以下几个文件构成:
+
+`Setup.sol`--->将你的合约写写在这里，并进行setup
+
+```solidity
+
+// SPDX-License-Identifier: GPL-2.0
+pragma solidity ^0.8.0;
+
+import {BaseSetup} from "@chimera/BaseSetup.sol";
+
+import "src0";
+
+abstract contract Setup is BaseSetup {
+
+    Proposal proposal;
+
+    function setup() internal virtual override {
+      proposal = new Proposal(); // TODO: Add parameters here
+    }
+}
+
+```
+
+<br/>
+
+`BeforeAfter.sol`--->继承Setup，并会找到所有`view`函数，放在一个struct中，同时放在`__before()`和`__after()`两个函数中，通过调用这两个函数，对比before和after两个struct中的内容。
+
+```solidity
+
+// SPDX-License-Identifier: GPL-2.0
+pragma solidity ^0.8.0;
+
+import {Setup} from "./Setup.sol";
+
+abstract contract BeforeAfter is Setup {
+
+    struct Vars {
+        uint256 __IGNORE_AVOID_COMPILE_ERROR;
+        address proposal_getCreator;//view函数1
+
+        uint256 proposal_getTotalAllowedVoters;//view函数2
+
+        bool proposal_isActive;////view函数3
+
+    }
+
+    Vars internal _before;
+    Vars internal _after;
+
+    function __before() internal {
+        _before.proposal_getCreator = proposal.getCreator();
+        _before.proposal_getTotalAllowedVoters = proposal.getTotalAllowedVoters();
+        _before.proposal_isActive = proposal.isActive();
+    }
+
+    function __after() internal {
+        _after.proposal_getCreator = proposal.getCreator();
+        _after.proposal_getTotalAllowedVoters = proposal.getTotalAllowedVoters();
+        _after.proposal_isActive = proposal.isActive();
+    }
+}
+
+```
+
+<br/>
+
+`Properties.sol`--->继承`BeforeAfter`，这里你可以写你的properties。
+
+```solidity
+
+// SPDX-License-Identifier: GPL-2.0
+pragma solidity ^0.8.0;
+
+import {Asserts} from "@chimera/Asserts.sol";
+import {BeforeAfter} from "./BeforeAfter.sol";
+
+abstract contract Properties is BeforeAfter, Asserts {
+
+	///property_x() public view returns(bool){
+	//	__before();
+	//  __after();
+	//return(...)
+	//}
+}
+
+```
+
+<br/>
+
+`TargetFunctions.sol`继承`Properties`和HEVM的cheatcode，并会找到所有的public/external函数，这里你可以写你的assertion
+
+```solidity
+
+// SPDX-License-Identifier: GPL-2.0
+pragma solidity ^0.8.0;
+
+import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
+import {Properties} from "./Properties.sol";
+import {vm} from "@chimera/Hevm.sol";
+
+abstract contract TargetFunctions is BaseTargetFunctions, Properties {
+
+    function proposal_vote(bool voteInput) public {
+    	//precondition
+    	...
+    	//action
+        proposal.vote(voteInput);
+        
+        //postcondition(assertion)
+        ...
+    }
+}
+
+```
+
+<br/>
+
+`CryticTester.sol`--->继承`TargetFunctions`，在这里写你echidna/medusa兼容的invariant写法
+
+```solidity
+
+// SPDX-License-Identifier: GPL-2.0
+pragma solidity ^0.8.0;
+
+import {TargetFunctions} from "./TargetFunctions.sol";
+import {CryticAsserts} from "@chimera/CryticAsserts.sol";
+
+// echidna . --contract CryticTester --config echidna.yaml
+// medusa fuzz
+contract CryticTester is TargetFunctions, CryticAsserts {
+    constructor() payable {
+        setup();//一般没啥加的，因为都在前面写好了
+    }
+}
+
+```
+
+<br/>
+
+`CryticToFoundry.sol`--->也继承`TargetFunctions`，但是不同的是这里是foundry兼容的写法，你可以用一些foundry的cheatcode，由于foundry没有config.yaml文件，所以也要在这里写foundry invariant必须使用的select限制函数`targetContract`，`targetSelector`，`targetSender`
+
+```solidity
+
+// SPDX-License-Identifier: GPL-2.0
+pragma solidity ^0.8.0;
+
+import {Test} from "forge-std/Test.sol";
+import {TargetFunctions} from "./TargetFunctions.sol";
+import {FoundryAsserts} from "@chimera/FoundryAsserts.sol";
+
+contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
+    function setUp() public {
+        setup();//使用之前的setup（记得这里是小写的
+        
+
+      targetContract(address(this));//合约筛选
+
+      bytes4[] memory selectors = new bytes4[](2);//函数筛选
+      selectors[0] = this.function1.selector;
+      selectors[1] = this.function2.selector;
+      targetSelector(FuzzSelector({ addr: address(this), selectors: selectors }));
+      
+       targetSender(address(0x1337));//msg.sender筛选
+    
+    
+    function invariant_property_test() external {
+        t(property_x(), "之前的property函数失败");
+    }
+    }
+}
+
+```
+
+总的来说，整个脚手架的继承路径如下：
+
+`Setup.sol`-->`BeforeAfter.sol`-->`Properties.sol`-->`TargetFunctions.sol`
+
+--->`CryticTester.sol`(Echidna/Medusa)
+
+**Or**
+
+--->`CryticToFoundry.sol`(Foundry)
+
+<br/>
+
+> [!NOTE]
+>
+> Recon不足的是，它并不是和如nextjs等前端项目一样通过CLI快速在你的测试中添加脚手架，你需要登网页，如果不付钱就得一个个找ABI放上去手动弄（但其实这样比你自己弄更清晰高效）
+>
+
+<br/>
+
+##### Medusa
+
+Medusa是TrailofBits团队继Echidna推出的另一个基于Geth（以太坊客户端）的Fuzz工具，它基本兼容所有你写过的用于Echinda测试的代码。
+
+由于是基于Geth，Medusa还能提供低级的Go API，允许用户在Go中通过事件和钩子来自定义测试方法，比如修改值生成器、添加自定义的测试逻辑。以进行可如修改链状态、自定义交易生成策略、注入EVM追踪器等复杂行为的测试。
+
+未来Medusa也将添加更高级的API，以便简化整个过程。
+
+详细教程请看[Medusa](https://secure-contracts.com/program-analysis/medusa/docs/src/index.html)
+
+<br/>
+
+TOB团队为什么创建了Echidna还要Medusa？
+
+- Haskell底层语言（基本没几个人懂，难以contribute）
+
+- 依赖HEVM
+
+> HEVM虽然没什么不好的，但是它也是Haskell写的，可能会在未来由于维护难度而被放弃，所以
+>
+> TOB团队寻求另外的VM
+
+<br/>
+
+Medusa特点：
+
+- OpenSource，可以看到fuzzing mutation算法的底层（https://github.com/crytic/medusa）
+- Medusa基于Go写的，相对好维护
+- 基于Geth作为基础的Fuzzer，相比HEVM来说能提升的测试能力的边界，也更好定位L1和L2区别所会产生的问题
+
+
+
+##### Further More...
+
+这里会更新Fuzzing相关的其他有用工具和资料，欢迎contribute：
+
+| NAME         | Description                                                  | Link                                                    |
+| ------------ | ------------------------------------------------------------ | ------------------------------------------------------- |
+| Fuzz-utils   | TOB团队所做的新的工具，能把corpus跑出来的结果，转化为UintTest写成PoC | https://github.com/crytic/fuzz-utils                    |
+| Properties   | TOB团队所收集的关于ERC20/ERC4626/ERC721的经典Property        | https://github.com/crytic/properties                    |
+| Publications | TOB团队的审计报告和学术集合，值得学习和借鉴                  | https://github.com/trailofbits/publications/tree/master |
+|              |                                                              |                                                         |
+|              |                                                              |                                                         |
+
+
+
+#### 2.2.2 Practical Guidance
+
+Fuzzing的主题思想就是寻找Invariant，但是Invariant到底怎么找？如何系统性地找，以更快地找到bug是困扰许多auditor的难题。
+
+接下来的内容会梳理一些指导性的思路以及案例来让各位在操作中头脑更加清晰。
+
+##### Invariants
+
+
+
+- ---
+
+  **总体框架与分类逻辑**
+
+  下面内容将介绍一种系统化的不变量分类方法，核心围绕**系统层级**，**智能合约生命周期** 和 **不变量来源** 三个维度展开，并举出 **4 种具体类型**。其分类逻辑如下：
+
+  1. **Invariant按系统层级划分：**
+  
+     - **Function-Level Invariant**：对于一般个别函数级别的不变量，多为白盒检测
+     - **System-Level Invariant**：系统设计上的不变量，案例如下
+     
+     > | 典型场景              | 系统级不变量示例                                       | 安全意义                   |
+     > | :-------------------- | :----------------------------------------------------- | :------------------------- |
+     > | 借贷协议              | 总存款 ≥ 总借款（Asset-Liability，也可以适用其他协议） | 避免资不抵债（Insolvency） |
+     > | 去中心化交易所（DEX） | 流动性池资产价值比恒定（如Uniswap的x*y=k）             | 防止套利攻击或计算错误     |
+     > | 跨链桥                | 锁定资产总量 = 目标链铸造资产总量                      | 避免双花或超额铸造         |
+     > | 稳定币系统            | 抵押品总价值 ≥ 稳定币流通量 × 锚定价格                 | 维持价格稳定性             |
+
+  
+
+  2. **合约生命周期阶段划分**
+
+  - **初始化（Construction/Initialization）**: 合约部署时的初始状态验证（如构造函数参数合法性）。
+  - **常规运行（Regular Functioning）**: 合约正常操作时的持续状态约束（如资金余额关系）。
+  - **结束状态（End State）**: 合约完成特定目标后的最终状态（如代币分发完毕后的零余额）。
+
+  
+
+  3. **不变量来源分类**
+
+  - **黑盒不变量（Black Box）**:  
+    基于协议设计文档和外部行为定义，无需了解代码实现。  
+    *示例*: "用户还款前不能退出借贷市场"（逻辑规则）。
+  - **白盒不变量（White Box）**:  
+    基于合约内部代码实现细节（如存储结构、数学运算）。  
+    *示例*: "映射 `X` 的总和必须等于存储变量 `Y`"（数据一致性）。
+
+  
+
+------
+
+**不变量具体类型**
+
+  基于上述三个维度，进一步将不变量分为 **4 种类型**：
+
+  ① **存储关系不变量（Storage Relationships）**  
+  - **特征**: 验证合约内部存储变量间的逻辑一致性。    
+  
+  - **示例**:  
+    
+    ```solidity
+    // 映射 X 的总值必须等于独立存储变量 Y （白盒+常规运行阶段）
+    assert(sum(X.values()) == Y);
+    // EnumerableSet 中的地址必须在映射 Y 中有对应条目（白盒+常规运行阶段）
+    assert(all(addr in EnumerableSetX → Y[addr] exists));
+    ```
+
+  ② **资金与偿付不变量（Monetary & Solvency）**  
+  - **特征**: 确保合约资金安全，避免资不抵债。    
+  
+  - **示例**:  
+    
+    ```solidity
+    // 代币分发完成后余额必须为 0（黑盒+结束状态）
+    assert(endState → balance == 0);
+    // 合约始终有足够代币覆盖负债（黑盒+常规运行）
+    assert(totalLiabilities <= tokenBalance);
+    ```
+
+   ③ **逻辑状态不变量（Logical State Validity）**  
+  - **特征**: 防止协议进入无效或矛盾状态。  
+  
+  - **示例**:  
+    ```solidity
+    // 有未偿还借款的账户不能退出市场（黑盒+常规运行）
+    assert(hasActiveBorrow(account) → !canExitMarket(account));
+    // 协议不应允许用户可被清算但无法还款（黑盒+常规运行）
+    assert(!(canBeLiquidated(account) && !canRepay(account)));
+    ```
+
+ ④ **防DoS错误不变量（DoS Prevention）**  
+  - **特征**: 避免因意外错误（如溢出、越界访问）导致操作中断。  
+
+  - **示例**:  
+    ```solidity
+    // 清算操作不应因算术错误或无效索引失败（白盒+常规运行阶段）
+    assert(liquidationNeverRevertsWith(Overflow|Underflow|OutOfBounds));
+    ```
+
+
+
+---
+
+ **实践建议**
+
+为什么要提出分类维度？因为维度的划分可以让你有一个系统性思考invariant的框架：
+
+>
+> | *Initial-State/Regular/ActionEnd* | Black-Box | WhiteBox |
+> | ---------------------------- | --------- | -------- |
+> | **Function-Level**           |           |          |
+> | **System-Level**             |           |          |
+>
+
+
+
+具体而言：
+
+- **先按系统层级开始**：决定是哪个层级的invariant是最高效的
+
+
+  - **黑盒不变量优先**: 从协议设计文档中提取核心规则，确保业务逻辑正确性。  
+  - **白盒不变量补充**: 针对代码实现细节（如存储结构、数学运算）添加防御性检查。  
+  - **阶段化测试**: 为每个生命周期阶段（初始化→运行→结束）设计针对性不变量（如结束状态验证仅在最终阶段触发）。
+  - **按表格回顾：**在真实的审计环境下，回到表格来查漏补缺，是否有特定维度的invariant没有被覆盖
+
+  这一分类方法为智能合约模糊测试提供了结构化指导，帮助开发者高效识别关键风险点并提升测试覆盖率。
+
+
+
+#### Actor Management
+
+在测试中，我们时常会引入很多Actor角色。比如在一个dex合约中，有LP，Swapper，Manager等，而对于LP和Swapper来说，一般都不能只有一个，所以如何管理角色也是一个需要思考的问题。
+
+从管理角色的方法而言，具体有两种：
+
+- 创建合约角色实例
+
+- 使用HEVM&Foundry.vm的方法
+
+##### 角色实例
+
+创建角色实例，即创建一个合约，并暴露其函数，再通过entrypoint合约调用，比如最简单的：
+
+```solidity
+contract Users {
+		event userCall(address,bytes memory)
+    function proxy(address target, bytes memory data) public returns (bool success, bytes memory retData) {
+        emit userCall(target,data);
+        return target.call(data);
+    }
+}
+
+contract entryPoint{
+	User user1 = new User();
+	User user2 = new User()
+	
+	function action1() public {
+        user1.proxy(address(testToken1),abi.encodeWithSelector(testToken1.approve.selector, address(pair),uint(-1)));
+	}
+}
+```
+
+这种方法虽然看上去复杂，但是对于一些存在`callback`的合约，其实也是唯一的方法（比如uniswap v4，flashloan）。
+
+例如，在trailofbits对Uniswap v4进行初步的end2end测试时（[Testing Code](https://github.com/trailofbits/v4-core/tree/add-stateful-properties/test/trailofbits)），他们将所有的swap/donation/LP动作做成了三个合约中的public函数，对应三个角色，并在每个合约中直接写明swap/donation/LP行为，和各自的callback行为。
+
+此时我们只需要像下面一样调用合约就可以：
+
+```solidity
+    // 1. 创建多个actors
+    LiquidityActor[] LiquidityActors;
+    DonationActor[] DonationActors;
+    SwapActor[] SwapActors;
+	
+	//2.创建角色选择器
+	function _clampLiquidityActor(uint8 actorIndex) internal returns (LiquidityActor) {
+        actorIndex = uint8(clampBetween(actorIndex, 0, NUMBER_LIQUIDITY_ACTORS - 1));
+        emit LogUint256("LiquidityActor index", actorIndex);
+        return LiquidityActors[actorIndex];
+    }
+	
+	//3.Fuzzing目标函数动作
+	function e2e_ProvideLiquidity(
+        uint8 actorIndex,
+        uint256 poolIndex,
+        int24 minTick,
+        int24 maxTick,
+        int256 liquidityDelta
+    ) public {
+        LiquidityActor actor = _clampLiquidityActor(actorIndex);
+        PoolKey memory poolKey = _clampToValidPool(poolIndex);
+
+        (minTick, maxTick) = _clampToUsableTicks(minTick, maxTick, poolKey);
+        actor.ProvideLiquidity(poolKey, minTick, maxTick, liquidityDelta);///call actor合约，调用LiquidityActor合约中的动作提供流动性
+    }
+
+```
+
+>  虽然说这种角色分配方式对于uniswap v4来说并不是最好的方式，因为uniswap  v4不具备原子性特征，不像其他合约一样会把每个动作暴露成一个单独的函数给外部调用，v4是需要调用`unlock()`之后`unlock()`调用msg.sender的`callback()`函数，来进行后续的动作合集。
+
+
+
+##### HEVM&Foundry方法
+
+对于对角色要求不高的情况，只需要创建一个`address user= address(1)`这样，进行prank即可
+
+```solidity
+interface IHevm {
+    function prank(address) external;
+}
+
+contract TestPrank {
+  address constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;//keccak("hevm cheat code")
+  IHevm hevm = IHevm(HEVM_ADDRESS);
+  Contract c = ...
+
+  function prankContract() public payable {
+    hevm.prank(address(0x42424242);
+    c.f(); // `c` will be called with `msg.sender = 0x42424242`
+  }
+}
+```
+
+
+
+
+
 
 
 
@@ -687,9 +1180,13 @@ https://mixbytes.io/blog/fuzzing-smart-contracts-practical-aspects-echidna
 
 https://www.youtube.com/@trailofbits/streams
 
+[Fuzz-Fest-Youtube](https://www.youtube.com/watch?v=Cqmu-mhSLt8)
 
+https://github.com/devdacian/solidity-fuzzing-comparison/tree/main
 
+https://dacian.me/
 
+https://github.com/trailofbits/v4-core/tree/add-stateful-properties/test/trailofbits
 
 
 
