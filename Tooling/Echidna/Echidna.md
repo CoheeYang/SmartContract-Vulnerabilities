@@ -670,8 +670,8 @@ contract FuzzingTest2 {
 
 ```yaml
 //以ConvertLib这个lib为例
-deployContracts: [["0x1f", "ConvertLib"]]//先指定lib部署的地址0x1f
-cryticArgs: ["--compile-libraries=(ConvertLib,0x1f)"]//将lib和编译器Link
+deployContracts: [["0x1f", "ConvertLib"],["0x2f","lib2"]]//先指定lib部署的地址0x1f
+cryticArgs: ["--compile-libraries=(ConvertLib,0x1f),(lib2,0x2f)"]//将lib和编译器Link
 ```
 
 ```solidity

@@ -1,4 +1,98 @@
-| ** Title**                       | **Description**                                              |
+Bug复盘：
+
+Owen- try cathc issue
+
+ABI-ecode stri https://solodit.cyfrin.io/issues/m-04-cidnft-broken-tokenuri-function-code4rena-canto-identity-protocol-canto-identity-protocol-contest-git
+
+涉及外部dex，但是却没有限制传输的bytes data导致的 bypasslimit https://github.com/debtdao/Line-of-Credit/blob/audit/code4rena-2022-11-03/contracts/utils/SpigotedLineLib.sol#L75-L85
+
+1/64 rule导致的问题 https://solodit.cyfrin.io/issues/h-08-gas-limit-check-is-inaccurate-leading-to-an-operator-being-able-to-fail-a-job-intentionally-code4rena-holograph-holograph-contest-git
+
+
+
+1. ERC20 transfer/transferFrom不总是revert，有时候会返回0/false
+
+
+
+
+
+表格：Rarity>=B时，有Heuristics
+
+A：极少人找到的bug，此类bug会让你获得非常可观收入。
+
+B：较少的人找到的bug，此类bug需要一定水平，并带给你一定的收入。
+
+C：一般性的bug，比如一些写错或明显的DoS，reentrancy等经典bug。
+
+| No.  | Description                                                  | Link                                                         | Classification                    | Protocal Class | Rarity | Heuristics                                                   |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- | -------------- | ------ | ------------------------------------------------------------ |
+| 1    | 持有51%投票权后通过再铸造超级投票权，以通过那些需要几乎100%投票权才能完成的proposal | [Party-Protocal](https://solodit.cyfrin.io/issues/h-01-the-51-majority-can-hijack-the-partys-precious-tokens-through-an-arbitrary-call-proposal-if-the-addpartycardsauthority-contract-is-added-as-an-authority-in-the-party-code4rena-party-protocol-party-protocol-git) | 51% attack                        | Governance     | B      |                                                              |
+| 2    | ERC20作为NFT持有股权，通过建立任意proposal将其所有的ERC20转给attacker，之后attacker拿这些ERC20换整个NFT | [PartyDAO](https://solodit.cyfrin.io/issues/h-06-a-majority-attack-can-steal-precious-nft-from-the-party-by-crafting-and-chaining-two-proposals-code4rena-partydao-partydao-contest-git) | 51% attack                        | Governance     | B      |                                                              |
+| 3    | lack zero address check 导致潜在的51% attack                 | [Veto]( https://solodit.cyfrin.io/issues/m-11-loss-of-veto-power-can-lead-to-51-attack-code4rena-nouns-builder-nouns-builder-contest-git) | 51% attack                        | Governance     | B      |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      | 写错的，25%写成了4，导致错误                                 | [IQ-AI]((https://code4rena.com/reports/2025-01-iq-ai#medium-risk-findings-1)) | 写错（数值填错）                  |                |        |                                                              |
+|      | 在流动性管理的合约中，有一个加入流动性的函数会判断对应代币对池子是否存在，如果不存在则创建一个池子，如果存在则使用这个池子。但是这个好玩的是这个池子任何人都能创建，也能定义手续费。 | [IQ-AI](https://code4rena.com/reports/2025-01-iq-ai#medium-risk-findings-2) | AcessControl                      |                |        |                                                              |
+|      | 经典Donation Attack                                          | [IQ-AI]( https://code4rena.com/reports/2025-01-iq-ai#m-02-attacker-can-dos-liquidity-migration-in-liquiditymanagersol) |                                   |                |        |                                                              |
+|      | 写错，检验了stateVariable，而非input                         | [IQ-AI](https://code4rena.com/reports/2025-01-iq-ai#m-03-ineffective-proposal-threshold-validation-allows-setting-arbitrary-high-values) |                                   |                |        |                                                              |
+|      | 由于资金划分管理的不清晰导致用户可能在Operator取手续费后导致资金的减少（fuzzing推荐，对应Invariant用户存入后资金不变） | [Liquid-ron](https://code4rena.com/reports/2025-01-liquid-ron#h-01-the-calculation-of-totalassets-could-be-wrong-if-operatorfeeamount--0-this-can-cause-potential-loss-for-the-new-depositors) |                                   |                |        |                                                              |
+|      | 合约生态中的front running（ERC4626特有的staking导致的front-running） | [Liquid-ron](https://code4rena.com/reports/2025-01-liquid-ron#m-01-user-can-earn-rewards-by-frontrunning-the-new-rewards-accumulation-in-ron-staking-without-actually-delegating-his-tokens) | front-running                     |                |        |                                                              |
+|      | Modifier中的require逻辑写错                                  | [Liquid-ron](https://code4rena.com/reports/2025-01-liquid-ron#m-02-operators-are-unable-to-perform-any-actions-due-to-incorrect-modifier-implementation) |                                   |                | C      |                                                              |
+|      | 合约中用户将`tgt`转入可以换`titn` ,可是存的那个函数没有先检查是否超过可存的额度，导致用户可能存了`tgt`，但是因为titn有限，之后的用户在取`titn`的时候取不出来 | [Thorwallet](https://code4rena.com/reports/2025-02-thorwallet#finding-description-and-impact) | Limited Precheck（前置check缺失） | Bridge         | C      |                                                              |
+|      | Bridge中独有的bug，当token本身存在（部分）限制转账时（A转B在设计限制了A转账路径），attacker可以通过跨链从X转到另外一个链Y，再通过Y转X中的B账户实现绕开限制（[如LayerZero::OFT中的send方法](https://github.com/LayerZero-Labs/LayerZero-v2/blob/main/packages/layerzero-v2/evm/oapp/contracts/oft/OFTCore.sol)） | [Thorwallet](https://code4rena.com/reports/2025-02-thorwallet#h-2-the-user-can-send-tokens-to-any-address-by-using-two-bridge-transfers-even-when-transfers-are-restricted) | 跨链转账                          | Bridge         | A      |                                                              |
+|      | 通过改变其他用户的flag，导致用户无法成功进行转账             | [ThorWallet](https://code4rena.com/reports/2025-02-thorwallet#m-1-improper-transfer-restrictions-on-non-bridged-tokens-due-to-boolean-bridged-token-tracking-allowing-a-dos-attack-vector) | DoS (改变其他人的数据导致)        | Bridge         | C      |                                                              |
+|      | 锁定流动性池`lock_pool`需要一个创建一个`lock_escrow account`，但是没用check这个account是否已经存在，如果已经存在则会出现DoS | [Pump-science](https://code4rena.com/reports/2025-01-pump-science#h-01-the-lock_pool-operation-can-be-dos) | DoS(提前占据他人数据)             | Bonding Curve  |        |                                                              |
+|      | 函数未成功更新结构体数据                                     | [Pump-science](https://code4rena.com/reports/2025-01-pump-science#h-02-missing-update-of-migration_token_allocation-on-global-struct) |                                   |                |        |                                                              |
+|      | 。。。Pump Science                                           |                                                              |                                   |                |        |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      | 在Flow control中，deposit的flow没有被成功finalize，导致DoS（对于多数flow control都有参考意义） | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#h-02-deposits-on-long-one-leverage-vault-dont-actually-finalize-the-flow-leading-to-a-denial-of-service-dos) | DoS(缺乏完整逻辑)                 | Strategy       | B      |                                                              |
+|      | PNL损益的计算错误（藏的非常深）                              | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#h-02-deposits-on-long-one-leverage-vault-dont-actually-finalize-the-flow-leading-to-a-denial-of-service-dos) | Logic error                       | Strategy       | B      |                                                              |
+|      | Mint所计算的shares出现问题，会导致同样的deposit，后续deposit的人反而会有更多shares。根本原因在于在计算“仓位净值”（`netValue`）时，错误地将**positionFee**（挂单手续费）也一并从净值中扣除，导致后续根据`netValue`与已有份额计算新用户应得份额时低估了整个池子的总资产值（`totalAmountBefore`），反过来使得后续每次存入者获得的份额越来越多，从而让“晚入场”的用户占到不公平的份额增益。           （推荐寻找方法：从结果出发，看是否会出现不公平的问题） | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#h-05-subtracting-position-fee-in-position-net-value-will-lead-to-incorrect-share-allocation) | Logic error                       | Strategy       | A      |                                                              |
+|      | 根据官方文档中，存在多个`orderHandler` 的角色，但是它只写了一个地址。 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-02-perpetualvault-can-be-completely-bricked) | Logic error                       | Strategy       | C      |                                                              |
+|      | 为检查创建订单等行为时用户账户所花费的gas是否大于账户余额，`getExecutionGasLimit`会估算总gas量，但是其中计算出现了缺乏估计`swapPath`长度，导致多跳swap（如Link->USDC->Weth）的gas估计失真。 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-03-getexecutiongaslimit-reports-a-lower-gas-limit-due-to-gasperswap-miscalculation) | Logic error                       | Strategy       | C      |                                                              |
+|      | `_validatePrice`中存在检查L2 Sequencer是否正常运行的逻辑，Sequencer是L2链中常见的交易排序和打包到L1的关键组件，Chainlink PriceFeed可以监测其是否正常运行。但是项目部署的一个链Avalaunch并非L2，而是L1，且`sequencerUptimeFeed`中的对应地址是硬编码的，导致潜在的DoS。 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-04-functions-that-rely-on-chainlink-prices-cannot-be-queried-on-avalanche-due-to-sequencer-uptime-check) | PriceFeed                         | Strategy       | B      | 不同链相关的问题，特别是L2 sequencer这一概念的理解           |
+|      | 对于被清算的仓位，合约中没有对shares进行清算的逻辑，导致后续开仓的人shares不正确 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-05-incorrect-share-accounting-after-liquidation-leading-to-ownership-dilution) | Logic error                       | Strategy       | B      |                                                              |
+|      | `GmxProxy.sol`中的GMX's ADL 行为将Gmx的钱转入`PerpetualVault`，但是`PerpetualVault`的withdraw行为依赖`balanceOf(this)`，如果在withdraw前触发ADL，用户可以获得更多。 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-06-user-may-withdraw-more-than-expected-if-adl-event-happens) | Logic error                       | Strategy       | B      | 当看见`balanceOf(this)`时检查外部操作此数据的方法            |
+|      | GMX中的ADL和liquidation行为最后的output token可以是ETH，而非WETH，`GmxProxy.sol`也存在receive函数，如果output是ETH，那么最后会转入`GmxProxy.sol`，但是`GmxProxy.sol`缺乏对应的转出ETH的函数，导致ETH被卡在合约中出不去。 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-07-adl-can-result-in-unwrapped-eth-as-output-which-is-not-handled) | Logic error                       | Strategy       | A      | 1. 外部依赖交易所的具体情况值得注意                     2. 类似的output token是ETH,而非ERC20 token的情况值得考虑 |
+|      | 这也是一个GMX原生设计上的点，GMX对于`MarketProps`中的`indexToken `指数代币，并非全是ERC20标准的合约，比如对BTC/USD，它设计的indexToken的合约地址是一个chainlink Aggregator 合约地址，此时任何关于`indexToken`的如balanceOf的调用都是错误的 | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-08-fetching-indextokenbalanceof-will-always-revert-for-btc-market) | Logic error                       | Strategy       | A      | 关注外部交易所对于BTC,ETH等代币的合约是否采用ERC20标准       |
+|      | `totalDepositAmount`在liquidation和withdraw行为中都没有更新，导致`totalDepositAmount`在deposit中一直上涨触发`maxCapReached` | [Gamma-LiquidityManagement](https://github.com/CoheeYang/2025-02-gamma/blob/main/Liquidity-Management.md#m-09-new-deposits-be-incorrectly-rejected-due-to-false-maxcapreached-errors) | Logic error                       | Strategy       | A      | 跟踪并检查state variable是否正确的更新，是否有办法扭曲它     |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      |                                                              |                                                              |                                   |                |        |                                                              |
+|      | 动态的slippage protection，和没有一样导致                    | [Pashov Audit Group](https://solodit.cyfrin.io/issues/h-01-_swap-is-vulnerable-to-sandwich-attacks-pashov-audit-group-none-gacha_2025-01-27-markdown) | Sandwich Attack                   |                |        |                                                              |
+
+
+
+
+
+check list
+
+deposit/withdraw: 
+
+前置check是否正确处理，
+
+比如检查了最大存/取额度（可能是vault中的token有限，不能存取超过最大额度）
+
+是否有period limit（不允许的period用于无法存取）
+
+是否正确处理了角色（attack是否能存/取别人的钱？）
+
+0值是否会导致问题？
+
+是否有存款，withdraw的所产生的array push导致dos ?（快速发送大量存取信息导致其他用户无法正常存取）
+
+
+
+
+
+
+
+
+
+
+| Title                            | **Description**                                              |
 | -------------------------------- | ------------------------------------------------------------ |
 | 0x                               | 0x Protocol is the trusted open source settlement layer for the permissionless global exchange of value. |
 | 1/64 Rule                        | According to this rule, when a contract function makes a call to another function or contract, only 63/64 of the remaining gas can be forwarded in a message call |
