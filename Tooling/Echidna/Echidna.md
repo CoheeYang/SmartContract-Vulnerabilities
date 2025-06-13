@@ -1196,6 +1196,78 @@ contract TestPrank {
 
 
 
+在https://github.com/Recon-Fuzz/chimera/blob/main/src/Hevm.sol，有比较好用的方法
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// slither-disable-start shadowing-local
+
+interface IHevm {
+    // Set block.timestamp to newTimestamp
+    function warp(uint256 newTimestamp) external;
+
+    // Set block.number to newNumber
+    function roll(uint256 newNumber) external;
+
+    // Add the condition b to the assumption base for the current branch
+    // This function is almost identical to require
+    function assume(bool b) external;
+
+    // Sets the eth balance of usr to amt
+    function deal(address usr, uint256 amt) external;
+
+    // Loads a storage slot from an address
+    function load(address where, bytes32 slot) external returns (bytes32);
+
+    // Stores a value to an address' storage slot
+    function store(address where, bytes32 slot, bytes32 value) external;
+
+    // Signs data (privateKey, digest) => (v, r, s)
+    function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
+
+    // Gets address for a given private key
+    function addr(uint256 privateKey) external returns (address addr);
+
+    // Performs a foreign function call via terminal
+    function ffi(string[] calldata inputs) external returns (bytes memory result);
+
+    // Performs the next smart contract call with specified `msg.sender`
+    function prank(address newSender) external;
+
+    // Sets msg.sender to the specified sender until stopPrank() is called
+    // NOTE: not currently supported by Medusa
+    function startPrank(address sender) external;
+
+    // Resets msg.sender to the default sender
+    function stopPrank() external;
+
+    // Creates a new fork with the given endpoint and the latest block and returns the identifier of the fork
+    function createFork(string calldata urlOrAlias) external returns (uint256);
+
+    // Takes a fork identifier created by createFork and sets the corresponding forked state as active
+    function selectFork(uint256 forkId) external;
+
+    // Returns the identifier of the current fork
+    function activeFork() external returns (uint256);
+
+    // Labels the address in traces
+    function label(address addr, string calldata label) external;
+
+    /// Sets an address' code.
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
+}
+
+IHevm constant vm = IHevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+// slither-disable-end shadowing-local
+```
+
+
+
+
+
 ##### Mutation Test
 
 如何测试你的testsuite是否能够足够好？
@@ -1211,6 +1283,126 @@ contract TestPrank {
 
 
 
+
+## 2.3 Helpers
+
+```yaml
+// echidna . --contract CryticTester --config echidna.yaml --format text --workers 16 --test-limit 1000000 --test-mode assertion
+
+
+testMode: "assertion"
+prefix: "invariant_"
+coverage: true
+corpusDir: "echidna"
+balanceAddr: 0x1043561a8829300000
+balanceContract: 0x1043561a8829300000
+filterFunctions: []
+cryticArgs: ["--foundry-compile-all"]
+deployer: "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496"
+contractAddr: "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496"
+shrinkLimit: 100000
+```
+
+
+
+```yaml
+// medusa fuzz
+{
+  "fuzzing": {
+    "workers": 16,
+    "workerResetLimit": 50,
+    "timeout": 0,
+    "testLimit": 0,
+    "callSequenceLength": 100,
+    "corpusDirectory": "medusa",
+    "coverageEnabled": true,
+    "deploymentOrder": [
+      "CryticTester"
+    ],
+    "targetContracts": [
+      "CryticTester"
+    ],
+    "targetContractsBalances": [
+      "0x27b46536c66c8e3000000"
+    ],
+    "constructorArgs": {},
+    "deployerAddress": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496",
+    "senderAddresses": [
+      "0x10000",
+      "0x20000",
+      "0x30000"
+    ],
+    "blockNumberDelayMax": 60480,
+    "blockTimestampDelayMax": 604800,
+    "blockGasLimit": 125000000,
+    "transactionGasLimit": 12500000,
+    "testing": {
+      "stopOnFailedTest": false,
+      "stopOnFailedContractMatching": false,
+      "stopOnNoTests": true,
+      "testAllContracts": false,
+      "traceAll": false,
+      "assertionTesting": {
+        "enabled": true,
+        "testViewMethods": true,
+        "panicCodeConfig": {
+          "failOnCompilerInsertedPanic": false,
+          "failOnAssertion": true,
+          "failOnArithmeticUnderflow": false,
+          "failOnDivideByZero": false,
+          "failOnEnumTypeConversionOutOfBounds": false,
+          "failOnIncorrectStorageAccess": false,
+          "failOnPopEmptyArray": false,
+          "failOnOutOfBoundsArrayAccess": false,
+          "failOnAllocateTooMuchMemory": false,
+          "failOnCallUninitializedVariable": false
+        }
+      },
+      "propertyTesting": {
+        "enabled": true,
+        "testPrefixes": [
+          "invariant_"
+        ]
+      },
+      "optimizationTesting": {
+        "enabled": false,
+        "testPrefixes": [
+          "optimize_"
+        ]
+      }
+    },
+    "chainConfig": {
+      "codeSizeCheckDisabled": true,
+      "cheatCodes": {
+        "cheatCodesEnabled": true,
+        "enableFFI": false
+      },
+      "skipAccountChecks": true,
+      "forkConfig": {
+        "forkModeEnabled": false,
+        "rpcUrl": "",
+        "rpcBlock": 1,
+        "poolSize": 20
+      }
+    }
+  },
+  "compilation": {
+    "platform": "crytic-compile",
+    "platformConfig": {
+      "target": ".",
+      "solcVersion": "",
+      "exportDirectory": "",
+      "args": [
+        "--foundry-compile-all"
+      ]
+    }
+  },
+  "logging": {
+    "level": "info",
+    "logDirectory": ""
+  }
+}
+```
 
 
 

@@ -13,7 +13,44 @@ Solidity存储数据的Location`L`可以是：
 
 由于root基本上是所有L计算的根本，如果想要避免冲突，就只需要改变起始的root的值不再是0即可。
 
-solidity默认会将root设为0，
+solidity默认会将root设为0，但是我们可以使用struct来打包变量，并且只需要改变struct的存储位置，那么其余的变量位置也会一同改变。
+
+这是由于在 Solidity 里，**struct 本身并不会自动给你分配一个固定的 slot**，它只是把一组成员按顺序、按打包规则，映射到「它所处的那个变量的起始 slot」往后的若干个 slot 上。只有当你**把一个 struct 当作合约的 state 变量**来声明时，编译器才会帮你把它分配到 slot 0、slot 1…这样的连续存储单元里
+
+```solidity
+contract A {
+    struct S { uint x; uint y; }//声明struct类型并不会占用slot
+    
+    //只有声明一个struct变量才会占用slot
+    S public data;   // data.x 在 slot 0，data.y 在 slot 1
+    uint public z;   // z 在 slot 2
+    …
+}
+```
+
+这样，我们就能结合利用assembly的slot，来改变声明的struct的变量的slot，以改变起始的root，从而避免storage collision。
+
+```solidity
+   Struct StrategyData {....}
+   
+   function logicFunction () external {
+        // Cache storage pointer.
+        StrategyData storage S = _strategyStorage();//接收stora变量，并进行后续处理
+        ....
+        }
+        
+   function _strategyStorage() internal pure returns (StrategyData storage S) {
+   //return中声明storage变量，同时assembly改变slot位置，返回该变量
+        bytes32 slot = BASE_STRATEGY_STORAGE;
+        assembly {
+            S.slot := slot
+        }
+    }
+    
+    bytes32 internal constant BASE_STRATEGY_STORAGE =
+        bytes32(uint256(keccak256("yearn.base.strategy.storage")) - 1);
+
+```
 
 
 
