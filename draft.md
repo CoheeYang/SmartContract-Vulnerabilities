@@ -1,25 +1,13 @@
-一个auditor信息聚合平台似乎也是一个不错的选择
-
-
-
-
-似乎压榨程序员做一个web3远程外部平台是一个不错的主意
-
-但是问题是这种兼职平台基本和web2的兼职平台没区别，如何保证竞争优势呢？
-
-
-
-市场营销的一环也是个大痛点，项目方需要拉起用户参与自己的协议，但是它们对市场营销方面缺乏理解，多是仰仗KOL的推荐，缺乏裂变，扩大不了规模。我是否能创造一个protocal，帮助项目方完成裂变这一步的痛点？类似web2中的拉新推广平台，
-
-
-
-
-
-TODO:
-
-看报告
-
-silo
-
-agies稳定bi
-
+CheckList
+1. Is there any wired token integrated?
+2. Any external calls?
+3. Any balanceOf(This)?
+4. Any array/Loop?
+5. Any mapping deleted 
+6. Any calculation/ up or downcasting
+7. Parallel Data structure ?
+8. Any signatures?
+9. dust input protection?
+10. Any state variable controlled by user?
+11. Any `gasleft()`/ `tx.gasprice`
+12. Any restriction that can be used by user?

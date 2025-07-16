@@ -24,7 +24,7 @@ Echidna是一个专注于Fuzzing的实用工具，也是一般审计合约时最
 Echidna通过你提供的合约代码和你写的Invariant作为输入，来在一个个sequence中尝试打破你的invariant。值得注意的是echidna默认就是stateful fuzzing的模式，这也意味着每个sequence中都是一笔笔真实而随机的函数调用。
 
 
-![alt text](../resources/image.jpeg)
+![alt text](../../../resources/image.jpeg)
 
 
 
@@ -348,7 +348,7 @@ Echidna有一个非常强大的功能，语料库（Corpus），它能够自动�
 
 下图是一个`covered.xxx.txt` 文件的案例；在这里，文件会清楚地告诉你哪些函数的多少行在测试中被cover了，哪些没有。
 
-![image-20250313223923673](../resources/image-20250313223923673.png)
+![image-20250313223923673](../../../resources/image-20250313223923673.png)
 
 在覆盖率报告中，Echidna使用以下标记系统指示代码执行状态：
 
@@ -365,7 +365,7 @@ Echidna有一个非常强大的功能，语料库（Corpus），它能够自动�
 
 此外，Corpus也会在coverage的文件夹中生成`xxx.txt`文件，这些文件就是过去echidna在调用函数时产生的路径，这个路径包括了call了什么函数，call函数的参数是多少。
 
-![image-20250313225259980](../resources/image-20250313225259980.png)
+![image-20250313225259980](../../../resources/image-20250313225259980.png)
 
 <br/>
 

@@ -67,9 +67,9 @@ $$
 
 ![alt text](../../resources/L-P%20graph.png)
 
-而在真实的交易池中，比如下面图中，ETH是Xtoken，也是标的资产token0;USDC是Ytoken，也是计价资产token1。
+而在真实的交易池中，比如下面图中，USDC计价资产token0，ETH是标的资产token1。
 
-当你向左边走（对应X-Y坐标中向左边走），就是卖出X（ETH）而获得USDC，所以有左边全是USDC的流动性储备。图中亮起的部分就是**那一个价格区间**有38.9万的USDC储备流动性。
+当你向左边走，就是卖出ETH而获得USDC，所以有左边全是USDC的流动性储备。图中亮起的部分就是**那一个价格区间**有38.9万的USDC储备流动性token的数量。
 
 ![alt text](../../resources/USDC-ETH.png)
 
