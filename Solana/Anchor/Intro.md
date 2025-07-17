@@ -1,3 +1,127 @@
+
+
+[TOC]
+
+
+
+# Native 与Anchor
+
+当我们打开SolanaPlayGround时，选择native会有如下的代码案例自动生成：
+
+```rust
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint,
+    entrypoint::ProgramResult,
+    msg,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
+
+/// Define the type of state stored in accounts
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub struct GreetingAccount {
+    /// number of greetings
+    pub counter: u32,
+}
+
+// Declare and export the program's entrypoint
+entrypoint!(process_instruction);
+
+// Program entrypoint's implementation
+pub fn process_instruction(
+    program_id: &Pubkey, // Public key of the account the hello world program was loaded into
+    accounts: &[AccountInfo], // The account to say hello to
+    _instruction_data: &[u8], // Ignored, all helloworld instructions are hellos
+) -> ProgramResult {
+    msg!("Hello World Rust program entrypoint");
+
+    // Iterating accounts is safer than indexing
+    let accounts_iter = &mut accounts.iter();
+
+    // Get the account to say hello to
+    let account = next_account_info(accounts_iter)?;
+
+    // The account must be owned by the program in order to modify its data
+    if account.owner != program_id {
+        msg!("Greeted account does not have the correct program id");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Increment and store the number of times the account has been greeted
+    let mut greeting_account = GreetingAccount::try_from_slice(&account.data.borrow())?;
+    greeting_account.counter += 1;
+    greeting_account.serialize(&mut *account.data.borrow_mut())?;
+
+    msg!("Greeted {} time(s)!", greeting_account.counter);
+
+    Ok(())
+}
+```
+
+结合我们之前在交易中了解的知识，就明白`process_instruction`中的三个输入在instruction中非常重要。
+
+```rust
+program_id: &Pubkey, 
+accounts: &[AccountInfo], 
+_instruction_data: &[u8], 
+```
+
+
+
+但是我们创建一个默认的anchor项目时，会发现这三个元素似乎消失不见了
+
+```rust
+use anchor_lang::prelude::*;
+
+// This is your program's public key and it will update
+// automatically when you build the project.
+declare_id!("11111111111111111111111111111111");
+
+#[program]
+mod hello_anchor {
+    use super::*;
+    pub fn initialize(ctx: Context<Initialize>, data: u64) -> Result<()> {
+        ctx.accounts.new_account.data = data;
+        msg!("Changed data to: {}!", data); // Message will show up in the tx logs
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct Initialize<'info> {
+    // We must specify the space in order to initialize an account.
+    // First 8 bytes are default account discriminator,
+    // next 8 bytes come from NewAccount.data being type u64.
+    // (u64 = 64 bits unsigned integer = 8 bytes)
+    #[account(init, payer = signer, space = 8 + 8)]
+    pub new_account: Account<'info, NewAccount>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct NewAccount {
+    data: u64
+}
+```
+
+但是实际上，anchor把这三个重要的输入拆分到了各个地方：
+
+1. 原先的programId被放在了`declare_id!`中。
+
+2. Account相关的array其实被隐式地放在了每个instruction的第一参数`Context<T>`中，而其中的T就是`#[derive(Accounts)]`下的结构体，它会明确各个需要的账户类型和限制，相比native使用`iter`更加简单和清晰
+
+   > 使用iter就表示你得保证交易中输入instruction中的accounts和函数内的赋值顺序一致,并且需要在程序中写好检查.
+
+3. `#[program]`会隐式地生成类似的`_instruction_data: &[u8]`输入口，同时本来被传入的字节序列`Instruction_data`，需要在native的instruction中parse并序列化。但是在anchor我们只需要使用IDL的方式调用
+
+可以看出Anchor的宏是一个非常重要的内容，而且Anchor的IDL还在其中发挥了作用，下面我们分别聊聊Anchor的这两个部分。
+
+
+
 # 宏
 
 Anchor提供了四个基础宏
@@ -264,8 +388,258 @@ impl anchor_lang::AccountDeserialize for DataAccount {
 
 
 
+# IDL
 
+IDL(Interface Description Language)是一个在使用Anchor SDK客户端（[@coral-xyz/anchor](https://github.com/coral-xyz/anchor/tree/0e5285aecdf410fa0779b7cd09a47f235882c156/ts/packages/anchor)）交互时非常重要的文件，它被用来作为标准化的接口来创建`Program`实例，当我们使用`anchor build`时自动生成此文件。
+
+其作用类似以太坊中的ABI，但区别是：
+
+ABI是以太坊的原生客户端的通用接口文件；
+
+IDL是这是Anchor独有的，而非Solana原生的；其作用是用于和Anchor的SDK进行自动化客户端代码生成，账户和指令序列化和反序列化而引入的元数据格式（简单来说`@coral-xyz/anchor`在`@solana/web3.js`上做了大量封装，从而需要一个接口文件作为输入值而已）。
+
+如果使用native则不会产生或者需要此类文件，而是直接使用solana原生的SDK`@solana/web3.js`等自己进行操作。
+
+
+
+## Anchor程序到IDL
+
+以下示例程序中：
+
+```rust
+use anchor_lang::prelude::*;
+ 
+declare_id!("BYFW1vhC1ohxwRbYoLbAWs86STa25i9sD5uEusVjTYNd");
+ 
+#[program]
+mod hello_anchor {
+    use super::*;
+    pub fn initialize(ctx: Context<Initialize>, data: u64) -> Result<()> {
+        ctx.accounts.new_account.data = data;
+        msg!("Changed data to: {}!", data);
+        Ok(())
+    }
+}
+ 
+#[derive(Accounts)]
+pub struct Initialize<'info> {
+    #[account(init, payer = signer, space = 8 + 8)]
+    pub new_account: Account<'info, NewAccount>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+ 
+#[account]
+pub struct NewAccount {
+    data: u64,
+}
+```
+
+对应的IDL是（Anchor 0.31.1版本）：
+
+```json
+{
+  "address": "BYFW1vhC1ohxwRbYoLbAWs86STa25i9sD5uEusVjTYNd",//programId
+  "metadata": {
+    "name": "hello_anchor",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
+      "accounts": [
+        {
+          "name": "new_account",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "NewAccount",
+      "discriminator": [176, 95, 4, 118, 91, 177, 125, 232]
+    }
+  ],
+  "types": [
+    {
+      "name": "NewAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "data",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+上面的IDL中，我们注意到有两个`accounts`字段，
+
+- 第一个`accounts`是在instruction中的，就是我们对应native输入三要素的instruction所需要的各个`accountMeta`。
+
+- 第二个`accounts`则对应的是在Anchor中定义的`#[account]`属性的struct，`#[account]`下的结构体就是我们创建的account所存储的信息
+
+  - 其中[Discriminators](https://www.anchor-lang.com/docs/basics/idl#discriminators)则作为类似（函数）签名的hash的功能，以分辨instruction/account的。其算法是类型固定前缀+名称的hash的前8字节
+
+    如：Instruction:`sha256("global:initialize")`的前八字节
+
+    ​	Accounts: `sha256("account:NewAccount")`的前八字节
+
+- 后面跟随的`types`则详细阐述了每个`#[account]`属性下的数据结构类型和结构下的各个字段。
+
+
+
+# PDA
+
+在之前的学习中，我们知道PDA账户是由ProgramId+Seed得到的，而`bump`则是保证生成的PDA账户是没有对应的私钥的。
+
+在一个Native项目中，一个涉及pda创建的案例如下 ([Ref](https://github.com/solana-developers/program-examples/tree/main/basics/pda-rent-payer)):
+
+```rust
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint,
+    entrypoint::ProgramResult,
+    program::invoke_signed,
+    pubkey::Pubkey,
+    rent::Rent,
+    system_instruction,
+    sysvar::Sysvar,
+};
+
+//structs
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
+pub struct RentVault {}
+impl RentVault {
+    pub const SEED_PREFIX: &'static str = "rent_vault";//@notice: 这里是第一个seed
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub enum MyInstruction {
+    InitRentVault(InitRentVaultArgs),
+    CreateNewAccount,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct InitRentVaultArgs {
+    fund_lamports: u64,
+}
+
+entrypoint!(process_instruction);
+
+//functions
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    input: &[u8],
+) -> ProgramResult {
+    let instruction = MyInstruction::try_from_slice(input)?;
+    match instruction {
+        MyInstruction::InitRentVault(args) => init_rent_vault(program_id, accounts, args),
+        MyInstruction::CreateNewAccount => create_new_account(program_id, accounts),
+    }
+}
+//这个函数会创建一个pda
+pub fn init_rent_vault(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    args: InitRentVaultArgs,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let rent_vault = next_account_info(accounts_iter)?;
+    let payer = next_account_info(accounts_iter)?;
+    let system_program = next_account_info(accounts_iter)?;
+
+    let (rent_vault_pda, rent_vault_bump) =
+        Pubkey::find_program_address(&[RentVault::SEED_PREFIX.as_bytes()], program_id);
+    assert!(rent_vault.key.eq(&rent_vault_pda));
+
+    // Lamports for rent on the vault, plus the desired additional funding
+    //
+    let lamports_required = (Rent::get()?).minimum_balance(0) + args.fund_lamports;
+	
+    //使用invoke_signed,而非invoke来执行systemProgram的指令`create_account`
+    //因为pda没有私钥,无法签名,所以这是一个pda专属的invoke方法
+    invoke_signed(
+        &system_instruction::create_account(
+            payer.key,
+            rent_vault.key,
+            lamports_required,
+            0,
+            program_id,
+        ),
+        &[payer.clone(), rent_vault.clone(), system_program.clone()],
+        &[&[RentVault::SEED_PREFIX.as_bytes(), &[rent_vault_bump]]],//pda seeds + bump
+    )?;
+
+    Ok(())
+}
+//这个函数通过seed + programId来找到pda地址和bump
+pub fn create_new_account(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let new_account = next_account_info(accounts_iter)?;
+    let rent_vault = next_account_info(accounts_iter)?;
+    let _system_program = next_account_info(accounts_iter)?;
+
+    let (rent_vault_pda, 
+        _rent_vault_bump) =
+    Pubkey::find_program_address(&[RentVault::SEED_PREFIX.as_bytes()], program_id);
+    
+    assert!(rent_vault.key.eq(&rent_vault_pda));//保证我们拿到的地址是pda地址.
+
+    
+    // Assuming this account has no inner data (size 0)
+    let lamports_required_for_rent = (Rent::get()?).minimum_balance(0);
+	
+    //转账自动调用SystemProgram::CreateAccount创建账户
+    **rent_vault.lamports.borrow_mut() -= lamports_required_for_rent;
+    **new_account.lamports.borrow_mut() += lamports_required_for_rent;
+    
+//The key here is accounts on Solana are automatically created under ownership of the System Program when you transfer lamports to them. So, you can just transfer lamports from your PDA to the new account's public key!
+    Ok(())
+    //
+}
+
+//@question who's the owner?
+
+```
+
+
+
+
+
+
+
+# Reference
 
 https://learnblockchain.cn/article/7386
 
 https://www.anchor-lang.com/docs/
+
+https://solana.com/developers/courses

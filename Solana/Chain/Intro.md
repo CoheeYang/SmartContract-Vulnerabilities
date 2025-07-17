@@ -228,6 +228,9 @@ PDA是一个极其重要的概念，它有以下的特征
 
 1. 无私钥，但是由ProgramID+特定的seed来决定public key
 2. 当系统程序确定调用PDA的程序的programId和seed结合能推导出公钥时就允许修改此账户的数据
+3. PDA的生产需要一个interger `bump`来保证 seed+ProgramID的组合推导出来的公钥没有对应的私钥
+
+
 
 
 
@@ -646,3 +649,6 @@ pub struct AccountMeta {
 [SolanaBytes视频](https://www.youtube.com/watch?v=pRYs49MqapI&list=PLilwLeBwGuK51Ji870apdb88dnBr1Xqhm&index=1)
 
 [PDA](https://learnblockchain.cn/article/12928)
+
+[Solana序列化](https://accu.cc/content/solana/tx_serialize/)
+
