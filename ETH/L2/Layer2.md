@@ -24,9 +24,9 @@ Layer1(共识层)->Layer2(结算层)->Layer3(应用层)
 
 具体来说，比如有以下模块化的方式：
 
-1. **共识层：**ETH (PoS)
+1. **共识层：**ETH (PoS) 也就是结算层
 2. **DA层：**Celestia、Kroma Data Availability，Anytrust，EigenDA，[EIP4844](https://www.ethereum.cn/Eth2/4844-design)
-3. **L2层**：
+3. **L2层**：（也就是执行ceng）
    - RollUp (Tx rollup & Proof Rollup)
    - Sequencer
    - Verifier

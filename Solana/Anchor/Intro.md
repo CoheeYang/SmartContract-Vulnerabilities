@@ -518,7 +518,9 @@ pub struct NewAccount {
 
 在之前的学习中，我们知道PDA账户是由ProgramId+Seed得到的，而`bump`则是保证生成的PDA账户是没有对应的私钥的。
 
-在一个Native项目中，一个涉及pda创建的案例如下 ([Ref](https://github.com/solana-developers/program-examples/tree/main/basics/pda-rent-payer)):
+在一个Native项目中，创建pda主要需要`invoke_signed`
+
+一个涉及pda创建的案例如下 ([Ref](https://github.com/solana-developers/program-examples/tree/main/basics/pda-rent-payer)):
 
 ```rust
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -593,8 +595,8 @@ pub fn init_rent_vault(
             lamports_required,
             0,
             program_id,
-        ),
-        &[payer.clone(), rent_vault.clone(), system_program.clone()],
+        ),//instruction
+        &[payer.clone(), rent_vault.clone(), system_program.clone()],//accounts array
         &[&[RentVault::SEED_PREFIX.as_bytes(), &[rent_vault_bump]]],//pda seeds + bump
     )?;
 
@@ -623,14 +625,116 @@ pub fn create_new_account(program_id: &Pubkey, accounts: &[AccountInfo]) -> Prog
     
 //The key here is accounts on Solana are automatically created under ownership of the System Program when you transfer lamports to them. So, you can just transfer lamports from your PDA to the new account's public key!
     Ok(())
-    //
+    //这种创建账户的方法会创建systemAccount属性的账户，意思是该账户的owner是systemProgram
 }
 
-//@question who's the owner?
 
 ```
 
+而在Anchor下，创建pda只需要在`#[derive(Accounts)]`的结构体下的accont属性中加入种子和bump，下面是一个创建pda的anchor案例（[see more](https://www.anchor-lang.com/docs/basics/pda#anchor-pda-constraints)）
 
+```rust
+#![allow(clippy::result_large_err)]
+use anchor_lang::prelude::*;
+use anchor_lang::system_program::{create_account, transfer, CreateAccount, Transfer};
+
+declare_id!("AvKoqYU7yhpddJriNSVcg2AMnDfpkWTWGU8LsRKXXrtE");
+
+#[program]
+pub mod pda_rent_payer {
+    use super::*;
+
+    pub fn init_rent_vault(ctx: Context<InitRentVault>, fund_lamports: u64) -> Result<()> {
+        instructions::_init_rent_vault(ctx, fund_lamports)
+    }
+
+    pub fn create_new_account(ctx: Context<CreateNewAccount>) -> Result<()> {
+        instructions::_create_new_account(ctx)
+    }
+    
+    pub mod instructions {
+        use super::*;
+        // When lamports are transferred to a new address (without and existing account),
+        // An account owned by the system program is created by default
+        pub fn _init_rent_vault(ctx: Context<InitRentVault>, fund_lamports: u64) -> Result<()> {
+            transfer(
+                CpiContext::new(
+                    ctx.accounts.system_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.payer.to_account_info(),
+                        to: ctx.accounts.rent_vault.to_account_info(),
+                    },
+                ),
+                fund_lamports,
+            )?;
+            Ok(())
+        }
+
+        pub fn _create_new_account(ctx: Context<CreateNewAccount>) -> Result<()> {
+            // PDA signer seeds
+            let signer_seeds: &[&[&[u8]]] = &[&[b"rent_vault", &[ctx.bumps.rent_vault]]];
+
+            // The minimum lamports for rent exemption
+            let lamports = (Rent::get()?).minimum_balance(0);
+
+            // Create the new account, transferring lamports from the rent vault to the new account
+            create_account(
+                CpiContext::new(
+                    ctx.accounts.system_program.to_account_info(),
+                    CreateAccount {
+                        from: ctx.accounts.rent_vault.to_account_info(), // From pubkey
+                        to: ctx.accounts.new_account.to_account_info(),  // To pubkey
+                    },
+                ).with_signer(signer_seeds),
+                lamports,                           // Lamports
+                0,                                  // Space
+                &ctx.accounts.system_program.key(), // Owner Program
+            )?;
+            Ok(())
+        }
+
+    }
+
+}
+
+#[derive(Accounts)]
+pub struct CreateNewAccount<'info> {
+    #[account(mut)]
+    new_account: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [
+            b"rent_vault",
+        ],
+        bump,
+    )]//这里就是pda创建所需要的seeds&bump，
+    //如果加入init&payer&space字段
+    //则会像anchor默认案例一样自动创建对应的账户
+    
+    rent_vault: SystemAccount<'info>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitRentVault<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [
+            b"rent_vault",
+        ],
+        bump,
+    )]
+    rent_vault: SystemAccount<'info>,
+    system_program: Program<'info, System>,
+}
+
+```
+
+# CPI
+
+Cross Program Invocations (CPI)其实就是通过程序互相调用来完成指令的过程（the process of one program invoking instructions of another program）。
 
 
 
