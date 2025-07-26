@@ -27,6 +27,13 @@
 - [consensus-specs](https://github.com/ethereum/consensus-specs)
 - [EIP](https://eips.ethereum.org/) implemented in various [network upgrades](https://ethereum.org/en/history/)
 
+更加具体的规范解释可以看
+
+https://eth2book.info/capella/annotated-spec/ 
+https://github.com/ethereum/annotated-spec
+
+
+
 
 
 **节点模型**：
@@ -51,7 +58,7 @@
 
 
 
-当用户发起一笔交易后，一笔交易通过rpc发送到execution client，此client将会先验证如签名是否正确/账户gas费是否足够，如果验证成功并在EVM中完成状态数的更新将会被gossip network发送给其他execution client的peers，此时此交易等待入块并会被放在memepool中，execution client也会收到其他节点的交易并同步到memepool等待出块，这些等待出块的交易通过engine api传输consensus client，之后consensus client中会根据算法选出validator，validator将memepool中交易打包出块，被打包出块的区块将在consensus client中gossip到其他的节点。当每一轮epoch结束后，其他的验证者将会进行验证并投票出正确的链，此链将会被finalize并成为以太坊上的一段数据。
+
 
 
 
@@ -177,9 +184,6 @@ https://eth2book.info/capella/part2/deposits-withdrawals/withdrawal-processing/#
 
 
 
-## Propose and Validate
-
-
 
 
 
@@ -200,13 +204,6 @@ https://launchpad.ethereum.org/en/faq
 
 
 
-# Beacon chain
-
-
-
-https://beaconscan.com/
-
-https://beaconcha.in/
 
 
 
@@ -218,7 +215,12 @@ https://beaconcha.in/
 
 
 
-## Reference
+
+
+
+
+
+# Reference
 
 1. [ethereumbook](https://github.com/ethereumbook/ethereumbook/blob/develop/13evm.asciidoc)
 2. [关于 EVM](https://www.evm.codes/about)
@@ -231,6 +233,10 @@ https://beaconcha.in/
 9. [EVM 实现示例](https://github.com/noxx3xxon/evm-by-example)
 10. [PBS(Proposer-Builder Separation架构)](https://ethereum.org/en/roadmap/pbs/):
 11. [Danksharding](https://www.ethereum.cn/ETh2/epochs-slots-and-beacon-blocks)
+12. [EPF.wiki](https://epf.wiki/#/eps/week1)
+13. [Reading list for ETH](https://github.com/eth-protocol-fellows/cohort-six/blob/master/program-guide/reading.md)
+14. https://beaconscan.com/
+15. https://beaconcha.in/
 
 
 
