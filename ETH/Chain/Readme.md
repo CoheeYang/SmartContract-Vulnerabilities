@@ -1,3 +1,5 @@
+[TOC]
+
 # 以太坊基本架构
 
 
@@ -13,17 +15,11 @@
 
   此repo是一个由Python所写的客户端，其src/ethereum目录下记录着各式版本的Execution Layer以供研究，
 
-  同时提供了可读的HTML文档来了解其codebase和升级的diff ([rendered spec](https://ethereum.github.io/execution-specs/))。
+  同时提供了可读的HTML文档来了解其codebase和升级的diff ([rendered spec](https://ethereum.github.io/execution-specs/))。
 
 - [consensus-specs](https://github.com/ethereum/consensus-specs)
 
   此repo也是由python所写，记录了从Beacon Chain从诞生以来的所有详细记录。
-
-
-
-
-
-
 
 
 
@@ -40,7 +36,15 @@
 
 
 
+# Nodes & Validator
 
+
+
+## Reward
+
+https://docs.lido.fi/#lido-on-ethereum-apr
+
+https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/rewards-and-penalties/
 
 
 

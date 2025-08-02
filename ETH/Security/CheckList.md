@@ -1,12 +1,12 @@
 [TOC]
 
-
 我认为过去的分类方法简直不科学，很多维度都非常混乱，比如DOS，griefing其实更多是结果维度的定义，而类似front run是attacker的攻击路径的维度。
 但是我们现在需要找bug是在找攻击的根源与路径。
 什么是漏洞的根源？
 比如access control的不严格，比如off by one 的顺序错误
 
 ##
+
 1. 存在验证的条件涉及state variable，但是此状态变量可以由用户随意更改
 
 2. balanceOf引起的问题
@@ -89,6 +89,12 @@ Flash Staking in staking actions
 
 
 
+
+
+
+
+
+
 ### DoS
 
 
@@ -100,6 +106,8 @@ Flash Staking in staking actions
 [OZ-across](https://blog.openzeppelin.com/across-audit#spokepools-fill-function-performs-malformed-call)这个bug就是call的时候参数少写了一位parameter。
 
 [OZ-across](https://blog.openzeppelin.com/across-audit#forwarder-and-withdrawal-helper-contracts-do-not-handle-eth-transfers-correctly)则少写了receive，导致该收钱的合约没法收钱。
+
+
 
 
 

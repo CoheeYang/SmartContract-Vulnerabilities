@@ -127,9 +127,23 @@ C：一般性的bug，比如一些写错或明显的DoS，reentrancy等经典bug
 | 93   | 当向外部转账，有人可以使用没写receive/fallback的合约来导致潜在的DoS | [GuardianAuditor](https://lab.guardianaudits.com/encyclopedia-of-solidity-attack-vectors/contract-cannot-accept-ether-dos) | DoS                               |                                               |        | Unpayable DoS                                                |
 | 94   | 管理这个forward合约的router没有对应的方法对onlyAdmin合约进行调用 | [OZ-across](https://blog.openzeppelin.com/across-audit#no-way-to-invoke-some-privileged-functions-of-forwarders) |                                   |                                               |        |                                                              |
 | 95   |                                                              |                                                              |                                   |                                               |        |                                                              |
-| 96   |                                                              |                                                              |                                   |                                               |        |                                                              |
-| 97   |                                                              |                                                              |                                   |                                               |        |                                                              |
-| 98   |                                                              |                                                              |                                   |                                               |        |                                                              |
+| 96   | **H1:**Type casting issue<br />**H2:**External call without protection<br />**H3:**缺乏重入保护<br />**H4:**修改订单缺乏检查订单是否已取消<br />**H5:**Approve uint256.Max 过量的approve导致损失<br />**H6:**Approve(target, order.amountIn)假设用户会花完额度，但是如果没花完的额度就会出问题，和H5一样是没清空额度导致的问题<br />**H7:**订单生成号缺乏nonce导致碰撞，而导致double-spending<br />**H8:**pullToken的对象是一个可输入的对象，而不是`msg.sender`导致attacker可输入它人账户，使得它人approve后，抢跑进行如griefing等攻击。 | [Oku's Trade](https://audits.sherlock.xyz/contests/641/report) |                                   |                                               |        |                                                              |
+| 97   | **M1:** 当使用USDT的0x地址作为recipient时，USDT无法转账到该地址，导致管理员无法cancel此类Order，导致Array徒增出现DoS。<br />**M2：** Typos issue，大于小于写反了<br />**M3:**订单中的方向无法被用户决定，有可能南辕北辙<br />**M4:** 旧版本的OZ，`safeApprove`不允许此token的allowance在之前没被清空，导致DoS<br />**M5:** Missing checks for feeBip settlement<br />**M6:**没有whitelist导致可创建任意不允许OracleLess合约转账的token使管理员无法取消订单，进行array griefing<br />**M7**:类似M1的griefing，但是这次是用blackList转账<br />**M8**：还是ArrayGriefing，原因是admin无法slash恶意订单，而只允许refund<br />**M9**：两个stopLimit订单会沿用`_createOrder()`，此时美元价格掉到MiniAmount下，但是之前创建成功的订单会被错误的`checkMiniAmount`检查位置给Block<br />**M10**: ArrayGriefing，无法取消订单<br />**M11:** 0元的Amount的订单可创建，制造ArrayGriefing。 | [Oku's Trade](https://audits.sherlock.xyz/contests/641/report) |                                   |                                               |        |                                                              |
+| 98   | ETH0和liquid staking token (e.g. wstETH, rETH) 铆钉，这些token对ETH都是一般大于1，但是如果extreme slash event发生，可能会出现小于1的情况，而Lido oracle更新时间是日更新，任意出现滞后信息。<br />导致有人可从中套利，如原来oracle报价 1 wstETH = 1.2 ETH但是突然出事 1 wstETH = 0.5 ETH时，信息滞后，ETH0按原来的1 wstETH=1.2ETH0，换出1.2ETH0，更新后1.2ETH0换回wstETH以获利。 | [UsualETH0](https://audits.sherlock.xyz/contests/988/report) |                                   | Stable Coin                                   |        |                                                              |
+|      |                                                              |                                                              |                                   |                                               |        |                                                              |
+|      |                                                              |                                                              |                                   |                                               |        |                                                              |
+|      |                                                              |                                                              |                                   |                                               |        |                                                              |
+|      |                                                              |                                                              |                                   |                                               |        |                                                              |
+
+
+
+
+
+
+
+
+
+
 
 
 

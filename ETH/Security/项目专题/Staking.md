@@ -1,4 +1,4 @@
-
+[TOC]
 
 # Intro
 
@@ -18,3 +18,16 @@
 |      |      |                 |
 |      |      |                 |
 
+# Lido
+
+以太坊Staking的投资回报率类似bond，大约在2%左右浮动，但对于所有投资者都有以下痛点
+
+- 32ETH的最小质押
+- Slash的风险
+- ETH被Lock而无法在投资
+
+
+
+## CSM v2
+
+https://github.com/lidofinance/lido-improvement-proposals/blob/develop/LIPS/lip-29.md
