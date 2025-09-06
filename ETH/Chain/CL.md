@@ -151,7 +151,7 @@ CAP定理指的是在一个分布式系统中 **Consistency（C）、Availabilit
 
 ## Issue
 
-从上面的两阶段出块流程我们可以看见，当一个区块正式从创建到finalize需要大约15分钟，这就引发了极低的效率问题。而
+从上面的两阶段出块流程我们可以看见，当一个区块正式从创建到finalize需要大约15分钟，这就导致极低的效率。而
 
 [Single slot finality](https://ethereum.org/en/roadmap/single-slot-finality/)的方案被提出，并在未来解决这个问题。此方案也是RoadMap--Merge中优先级最高的方案。
 

@@ -9,9 +9,7 @@ https://github.com/d-xo/weird-erc20?tab=readme-ov-file#weird-erc20-tokens
 - 常见于ERC777，这个代币在transfer和transferFrom的方法中存在一个对外call的hook，导致潜在的重入攻击[ERC777](https://learnblockchain.cn/article/6087)
 - **风险**：可在 Uniswap、借贷协议中重复抽取资金，如 imBTC Uniswap 池被清空、dForce 借贷池被掏空
 
-> [!NOTE]
->
-> 
+
 
 
 

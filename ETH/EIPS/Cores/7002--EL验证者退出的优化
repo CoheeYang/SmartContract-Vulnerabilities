@@ -1,0 +1,10 @@
+# EIP 7002
+
+**EIP‑7002** (“Execution layer triggerable withdrawals”) 的核心在于：
+
+它为以太坊验证者增加了一条新通道，使得持有执行层（0x01）取款凭证的密钥（通常是冷钱包或 DAO 多签），可以 **直接发起退出（exit）和部分提现（partial withdrawal）** 操作，而无需依赖“活跃签名密钥”（active BLS key）本身去提交退出请求[Ethereum Improvement Proposals](https://eips.ethereum.org/EIPS/eip-7002?utm_source=chatgpt.com)。
+
+- 之前的设计中，只有验证者的BLS密钥可以发起退出，造成在多方托管、密钥分离等场景下，取款凭证持有者无法独立控制流动性。
+
+- 此提议在Pectra升级中落地
+
