@@ -56,6 +56,62 @@
 
 
 
+## 3. Filed
+
+域是一种特殊的group，简单来说，一个域就是一个同时满足加法与乘法的阿贝尔群，同时这个群还满足分配律(`a(b+c) = ab+bc`)。
+
+最典型的filed就是实数域R，它是一个无限域，有着无限的元素。
+
+
+
+# Zero Knowledge Proof
+
+什么是零知识证明？一句话：**在不泄露秘密的情况下，证明你知道某个秘密**。
+
+要叫“零知识证明”，它必须满足三点：
+
+1. **完备性（Completeness）**
+
+   - 如果你真的知道秘密（证明是正确的），验证者就会被说服。
+
+2. **可靠性 / 健全性（Soundness）**
+
+   - 如果你不知道秘密，就几乎不可能骗过验证者。
+
+3. **零知识性（Zero-Knowledge）**
+
+   - 验证者只学到“你知道秘密”，不会获得额外信息。
+
+证明流程的角色
+
+   - **证明者（Prover）**：知道秘密的人
+   - **验证者（Verifier）**：想确认对方确实知道
+
+ZKP有两种一种是interactive另外一个是non-interactive。区别是前者需要多次的prover-verifier之间的通信，而后者只需要一轮通信次数，由于延迟和对时间窗口的需求，大部分ZKP的研究都聚焦于non-interactive，比如`stark`,`snark`,`bullet-proof`都是此类。
+
+**一些术语：**
+
+1. **Statement/Claim**：大家都知道的部分。比如`n 是两个素数的乘积`就是一个statement。
+
+2. **Witness**：你私下知道的秘密信息，可以证明声明是真的。比如接着上面statement的`n对应这两个素数 p 和 q`就是一个witness。
+3. **Private/Public inputs**: Private input是只给prover的input，verifier无法知晓。Public inputs是大家都知道的Inputs。此类最明显例子的就是私钥和公钥，或者比如用户的年龄是个private input，而成年的标准18就是个public input。上面说的
+4. **Constraints:**就是一个数学方程，比如存在一个claim`y = x * x`，而Public input是`y=9`。则对应的constraint是`y - x * x = 0`。
+5. **Circuit:** constraint的集合，即一堆constraints。
+
+**ZKP in practice**：
+
+一个ZKP系统一般由前后端组成
+
+- **前端：**前端即constraint system，决定了我们输入的程序如何定义成数学问题。具体而言，就是你写的代码转化成constraints；比如RISC0收到你写的Rust程序通过rust编译器编译的ELF二进制文件，这些二进制文件中的一个个指令会被其`executor`转化为constraints，从而构成circuit。
+
+  > 比如一个`add` 指令，其约束就可能是：`(寄存器t1的值) + (寄存器t2的值) - (寄存器t0的值) = 0。
+
+- **后端**：即proving system，它决定了编译好的circuit是如何产生一个proof和如何验证此proof的。
+
+
+
+
+
 
 
 
@@ -64,3 +120,8 @@
 
 [(37) Cryptography 101 for Blockchain Developers Part 1/3: Group Theory - YouTube](https://www.youtube.com/watch?v=jnhjM_2hDJE&t=199s)
 
+[ECDSA](https://epf.wiki/#/wiki/Cryptography/ecdsa)
+
+[ZK白板系列 | 登链社区](https://learnblockchain.cn/video/play/1123)
+
+[2、zkVM 基本概念]( https://www.bilibili.com/video/BV1rKAHeFE6u/?share_source=copy_web&vd_source=03848fedb0d9e50472e7d3176f314e01)
