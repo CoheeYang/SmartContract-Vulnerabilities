@@ -10,7 +10,7 @@
 
 这个 virtual liquidity 模拟的是：以当前价格 $c$ 为起点，将价格范围限制在 $a$ 与 $b$ 之间，使得任意在 $[a,b]$ 内的现价 $c$，都可以从 $c$ 兑换到 $a$ 或 $b$。
 
-![alt text](../../../resources/virtualLiquidity.png)
+![图1](../../../resources/virtualLiquidity.png)
 
 假设我们想模拟的这条目标曲线的流动性值为 $K$（通常记为 $L^2$，下面也会用 $L$ 表示 $\sqrt{K}$）。
 
@@ -21,7 +21,7 @@
 
 也就是说，池中至少要有 $(X_r, Y_r)$ 的代币储备。现在我们讨论真实代币量与流动性之间的关系。
 
-### 我如何通过已有的 $(X_r, Y_r)$ 推出创造出来的池的流动性 $K$？
+### 1.1.1 如何通过已有的 $(X_r, Y_r)$ 推出创造出来的池的流动性 $K$？
 
 已知当前点 $c$ 的坐标为 $(X_c, Y_c)$，区间端点 $a$ 与 $b$ 的坐标分别为 $(X_a, Y_a)$ 和 $(X_b, Y_b)$。则有：
 
@@ -55,15 +55,71 @@ $$
 
 ------
 
-同时，virtual liquidity 也意味着用户可以只构造单边的流动性（例如只存入 USDC 或只存入 ETH），不再像 V2 那样必须同时提供两种代币才能提供流动性。由于多个曲线会叠加在同一 $X$–$Y$ 坐标上，图像会比较复杂，因此 V3 通常使用 $L$–$P$（liquidity–price）坐标轴来表示池中的流动性分布。
+### 1.1.2 单边流动性
+
+同时，virtual liquidity 也意味着用户可以只构造单边的流动性（例如只存入 USDC 或只存入 WETH），不再像 V2 那样必须同时提供两种代币才能提供流动性。由于多个曲线会叠加在同一 $X$–$Y$ 坐标上，图像会比较复杂，因此 V3 通常使用 $L$–$P$（liquidity–price）坐标轴来表示池中的流动性分布。
 
 在固定价格区间 $[P_a,P_b]$ 中，用户存入 $(X_r,Y_r)$ 后，按上面的公式即可算出新增流动性量 $L$（或 $K=L^2$）。
 
 ![alt text](../../../resources/L-P%20graph.png)
 
-举例：在真实的交易池中（下图），如果 USDC 为计价资产（token0），ETH 为标的资产（token1），当价格向左移动表示卖出 ETH 换取 USDC（因此左侧更多的是 USDC 的流动性储备）。图中亮起的部分即为**某一价格区间**内对应的流动性（例如显示有 38.9 万 USDC 的流动性储备）。
+举例：在真实的交易池中（下图），如果 USDC 为计价资产（token1），ETH 为标的资产（token0），当价格向左移动表示卖出 ETH 换取 USDC（因此左侧更多的是 USDC 的流动性储备）。图中亮起的部分即为**某一价格区间**$[P_a,P_b]$内对应的流动性（例如显示有 38.9 万 USDC 的流动性储备）。
 
 ![alt text](../../../resources/USDC-ETH.png)
+
+也正是由此，我们能看见，最中间的那个区间，其左边全部是USDC的储备$Y$，而右边全部是WETH的储备$X$，这样我们就可以**分情况能简化（3）式得到更加具体的公式**，假设用户选择加入流动性的那个区间为$[P_a,P_b]$，而现在的价格$P$。
+
+1. **$P<P_a$ 时，即全部是WETH的储备$X_r$，而此时真实需要的USDC储备$Y_r = 0$**
+
+   ![image-20250917155856446](../../../resources/image-20250917155856446.png)
+
+$$
+\left(X_r + \dfrac{L}{\sqrt{P_a}}\right)\left( 0+ L\sqrt{P_b }\right) = L^2. \tag{4}
+$$
+
+可以得到：
+$$
+L= X_r \dfrac{\sqrt{P_a}\sqrt{P_b}}{\sqrt{P_b} - \sqrt{P_a}}  \tag{5}
+$$
+
+2. **$P>P_b$ 时，此时全是USDC的储备，则有：**
+   $$
+   \left(0 + \dfrac{L}{\sqrt{P_a}}\right)\left(Y_r + L\sqrt{P_b}\right) = L^2.  \tag{6}
+   $$
+
+可以得到：
+$$
+L= \dfrac{Y_r}{\sqrt{P_b} -\sqrt{P_a}} \tag{7}
+$$
+
+3. $P_a <P< P_b$ ，**此时就相当于图1中，我们最初设想的 $c$ 到 $a$ 和 $b$点移动的情形，**当向$b$移动，一直出的是$X$，而向$a$点移动则一直出$Y$。$c$ 代表就是代表现在的价格点 $P$ ，那么$[P_a,P]$$[P,P_b]$的区间的移动也符合上面两种单边资产的移动中的一种。
+
+   所以我们在$[P_a,P]$的区间，应该也是类似（4）式可得：
+   $$
+   \left(X_r + \dfrac{L}{\sqrt{P_a}}\right)\left( 0+ L\sqrt{P}\right) = L^2. \tag{8}
+   $$
+   最终：
+   $$
+   L= X_r \dfrac{\sqrt{P_a}\sqrt{P}}{\sqrt{P} - \sqrt{P_a}}  \tag{9}
+   $$
+   类似地我们可以推理$[P,P_b]$的情况，最终得到：
+
+
+$$
+L= \dfrac{Y_r}{\sqrt{P_b} -\sqrt{P}} \tag{10}
+$$
+其中（10）和（9）是同一个价格曲线，所以$L$也必定相等，联立二式可得一个无需$L$的算式：
+$$
+\dfrac{Y_r}{\sqrt{P_b} -\sqrt{P}}= X_r \dfrac{\sqrt{P_a}\sqrt{P}}{\sqrt{P} - \sqrt{P_a}}  \tag{11}
+$$
+
+> 由上面的式子，由于价格区间是常数，流动性$L$的变化量$\Delta L$可以通过单个代币的储备的变化量得出。
+
+**总结：**
+
+- 如果价格区间在左侧，（5）式可以得到流动性与代币$X$储备/变化量的关系
+- 如果价格区间在右侧，（7）式式可以得到流动性与代币$Y$储备/变化量的关系
+- 如果在中间区间，参考式（9），（10），（11）
 
 ------
 
@@ -75,7 +131,7 @@ $$
 $$
 p = 1.0001^t
 $$
-其中 $t$ 为当前的 tick（`currentTick`）。因为 V3 支持用户创建任意的价格区间，所以不同 LP 的区间可以部分重叠，也可能存在空隙（没有流动性），为处理这些情况引入了 tick 与 position（价格区间）的设计。
+其中 $t$ 为当前的 tick（`currentTick`）并使用1基点 (0.0001)作为增长量。因为 V3 支持用户创建任意的价格区间，所以不同 LP 的区间可以部分重叠，也可能存在空隙（没有流动性），为处理这些情况引入了 tick 与 position（价格区间）的设计。
 
 这意味着真实的 $L$–$P$ 图在实现时是按 liquidity–tick 表示的（和官方池图一致）。价格区间由 tick spacing 表示，常见的 tick spacing 有 `1`、`10`、`60` 等（由池的设置决定）。
 
@@ -83,15 +139,470 @@ $$
 
 LP 在提供流动性时需要按 tick spacing 的整数倍来提供。例如，如果 tick spacing 为 1，LP 可以对区间 $[-20,,20]$ 提供流动性，但不能对 $[-20,,-15]$ 这样不对齐 tick spacing 的区间提供流动性（必须“整格”提供）。
 
-------
+
+
+在实操中，由于小数和精度问题，uniswap直接使用了$\sqrt{p}$ 而不是 $p$ 来存储价格以方便(3)中的计算。并使用 `fixed point Q64.96`，即64bit存储整数，96bit存储小数来存储 $\sqrt{p}$ ，这使得$\sqrt{p}$ 在 $[2^{-128},2^{128}]$之间。
+
+ 而 $t$ 与 $\sqrt{p}$ 的关系如下：
+$$
+\sqrt{p} = 1.0001^{t/2} \\
+t=2·log_{1.0001}\sqrt{p}
+$$
+
+## Liqudity Providing
+
+从式（5）（7）的例子中，由于任何的swap中，都是换出单边的储备，所以
+
+
+
+现在我们想问的是，如果LP加入了一定的token，那么liquidity $L$ 该如何变化？
+
+其实这和上面（5），（7）的推导逻辑类似。比如现在的流动性池的价格是 $P$，而你对一个价格区间为$[P_a,P_b]$ 流动性为$L_0$ 部分加入流动性，且已知此流动性区间在现价$P$ 的左侧（$P$ < $P_a$ ）这部分加的必然是$X$ USDC token， 
+
+
+
+
+
+## 1.4 Swap
+
+假设现在池中的liquiduity如下图
+
+![image-20250916214637864](../../../resources/image-20250916214637864.png)
+
+左边全是TokenX,右边全TokenY。现在的价格在中间`tick = 0`时，如果有人买入Y而卖出X，Y红色区域就会变少，而蓝色的X则会增加，价格就会上涨，此时流动性$L$下降到13，如下图所示。
+
+![image-20250916215029762](../../../resources/image-20250916215029762.png)
+
+
+
+
+
+
 
 ## Ref
+
 
 - https://zhuanlan.zhihu.com/p/448382469
 - https://updraft.cyfrin.io/courses/uniswap-v3/spot-price/slot0
 - [Uniswap V3 - Uniswap V3 Development Book](https://uniswapv3book.com/milestone_0/uniswap-v3.html)
+- [uniswap-v3-liquidity-math.pdf](https://atiselsts.github.io/pdfs/uniswap-v3-liquidity-math.pdf)
 
 
 
 # 2. 项目代码
+
+## 2.1 Slot0
+
+在`UniswapV3Pool.sol`的代码中，有一个关键变量`Slot0`存储着一些数据：
+
+```solidity
+struct Slot0 {
+        // the current price
+        uint160 sqrtPriceX96;
+        // the current tick
+        int24 tick;
+        // the most-recently updated index of the observations array
+        uint16 observationIndex;
+        // the current maximum number of observations that are being stored
+        uint16 observationCardinality;
+        // the next maximum number of observations to store, triggered in observations.write
+        uint16 observationCardinalityNext;
+        // the current protocol fee as a percentage of the swap fee taken on withdrawal
+        // represented as an integer denominator (1/x)%
+        uint8 feeProtocol;
+        // whether the pool is locked
+        bool unlocked;
+    }
+```
+
+这个变量之所以叫`slot0`是因为它只用了32字节，即第一个slot来存储了所有的变量。uniswapV3不会缓存token的数量来算得价格，而是直接使用`sqrtPriceX96`和`tick`来显示价格。它们两个是一个时间加权平均值，防止oracle manipulation而为。
+
+
+
+1. **sqrtPriceX96**
+
+`sqrtPriceX96`就是64bit存储整数，96bit存储小数来存储 的$\sqrt{p}$ ，共160bit。由于这种方式存储相当于把数字扩大了$2^{96}$ 倍。所以当我们得到此数据时，需要将`sqrtPriceX96`除以$2^{96}$得到正常的$P$
+
+比如在[Uniswap V3: USDT | Address: 0x4e68Ccd3...3960dFa36 | Etherscan](https://etherscan.io/address/0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36#readContract))这个WETH/USDT的pool中，我们通过`slot0`可以读到`sqrtPriceX96 = 5318802539221741045234587`那么计算$P$ 方法如下：
+
+```python
+ sqrtPriceX96 = 5318802539221741045234587
+ Q96 = 2**96
+ rawPrice = (sqrtPriceX96/Q96)**2
+ print(rawPrice) #此时的价格还有decimal，由于是USDT/WETH，所以应该除掉1e6再乘上1e18
+ # -> 4.5068029233540776e-09
+
+ P = rawPrice/1e6 *1e18 
+ print(P)
+ # -> 4506.802923354077
+```
+
+> 注意`sqrtPriceX96 `的转化，是最后继续decimal转化，切勿提前进行decimal转化
+
+2. **tick**
+
+`tick`可通过$p = 1.0001^{t}$ 算得 $p$ ，比如我查到的tick为`-192187`
+
+```python
+tick = -192187
+rawPrice = 1.0001**tick
+print(rawPrice)
+# -> 4.50652662843139e-09
+
+#同理修正decimal
+P = rawPrice/1e6 * 1e18
+print(P)
+# -> 4506.52662843139
+```
+
+## 2.2 Liqudity Provide
+
+### Mint 
+
+```solidity
+    /// @inheritdoc IUniswapV3PoolActions
+    /// @dev noDelegateCall is applied indirectly via _modifyPosition
+    function mint(
+        address recipient,
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 amount,//Liqudity added
+        bytes calldata data
+    ) external override lock returns (uint256 amount0, uint256 amount1)//返回需要的两个token的值
+    {
+        require(amount > 0);
+        (, int256 amount0Int, int256 amount1Int) =
+            _modifyPosition(
+                ModifyPositionParams({
+                    owner: recipient,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    liquidityDelta: int256(amount).toInt128()
+                })
+            );
+
+        amount0 = uint256(amount0Int);
+        amount1 = uint256(amount1Int);
+
+        uint256 balance0Before;
+        uint256 balance1Before;
+        if (amount0 > 0) balance0Before = balance0();
+        if (amount1 > 0) balance1Before = balance1();
+        IUniswapV3MintCallback(msg.sender).uniswapV3MintCallback(amount0, amount1, data);
+        if (amount0 > 0) require(balance0Before.add(amount0) <= balance0(), 'M0');
+        if (amount1 > 0) require(balance1Before.add(amount1) <= balance1(), 'M1');
+
+        emit Mint(msg.sender, recipient, tickLower, tickUpper, amount, amount0, amount1);
+    }
+```
+
+
+
+```solidity
+        /// @dev Effect some changes to a position
+    /// @param params the position details and the change to the position's liquidity to effect
+    /// @return position a storage pointer referencing the position with the given owner and tick range
+    /// @return amount0 the amount of token0 owed to the pool, negative if the pool should pay the recipient
+    /// @return amount1 the amount of token1 owed to the pool, negative if the pool should pay the recipient
+    function _modifyPosition(ModifyPositionParams memory params) private noDelegateCall
+        returns (Position.Info storage position,int256 amount0,int256 amount1)
+    {
+        checkTicks(params.tickLower, params.tickUpper);//检查 valid tick
+
+        Slot0 memory _slot0 = slot0; // SLOAD for gas optimization
+
+        position = _updatePosition(
+            params.owner,
+            params.tickLower,
+            params.tickUpper,
+            params.liquidityDelta,
+            _slot0.tick
+        );
+
+        if (params.liquidityDelta != 0) {
+            if (_slot0.tick < params.tickLower) {
+                // current tick is below the passed range; liquidity can only become in range by crossing from left to
+                // right, when we'll need _more_ token0 (it's becoming more valuable) so user must provide it
+                amount0 = SqrtPriceMath.getAmount0Delta(
+                    TickMath.getSqrtRatioAtTick(params.tickLower),
+                    TickMath.getSqrtRatioAtTick(params.tickUpper),
+                    params.liquidityDelta
+                );
+            } else if (_slot0.tick < params.tickUpper) {
+                // current tick is inside the passed range
+                uint128 liquidityBefore = liquidity; // SLOAD for gas optimization
+
+                // write an oracle entry
+                (slot0.observationIndex, slot0.observationCardinality) = observations.write(
+                    _slot0.observationIndex,
+                    _blockTimestamp(),
+                    _slot0.tick,
+                    liquidityBefore,
+                    _slot0.observationCardinality,
+                    _slot0.observationCardinalityNext
+                );
+
+                amount0 = SqrtPriceMath.getAmount0Delta(
+                    _slot0.sqrtPriceX96,
+                    TickMath.getSqrtRatioAtTick(params.tickUpper),
+                    params.liquidityDelta
+                );
+                amount1 = SqrtPriceMath.getAmount1Delta(
+                    TickMath.getSqrtRatioAtTick(params.tickLower),
+                    _slot0.sqrtPriceX96,
+                    params.liquidityDelta
+                );
+
+                liquidity = LiquidityMath.addDelta(liquidityBefore, params.liquidityDelta);
+            } else {
+                // current tick is above the passed range; liquidity can only become in range by crossing from right to
+                // left, when we'll need _more_ token1 (it's becoming more valuable) so user must provide it
+                amount1 = SqrtPriceMath.getAmount1Delta(
+                    TickMath.getSqrtRatioAtTick(params.tickLower),
+                    TickMath.getSqrtRatioAtTick(params.tickUpper),
+                    params.liquidityDelta
+                );
+            }
+        }
+    }
+```
+
+
+
+### Collect
+
+
+
+
+
+## 2.3 Swap
+
+
+
+```solidity
+    /// @inheritdoc IUniswapV3PoolActions
+    function swap(
+        address recipient,
+        bool zeroForOne,
+        int256 amountSpecified,//需要的token，大于0是exactInput，小于0是exactOutput
+        uint160 sqrtPriceLimitX96,//限价
+        bytes calldata data
+    ) external override noDelegateCall returns (int256 amount0, int256 amount1) {
+//1. checks & read data         
+        require(amountSpecified != 0, 'AS');
+        Slot0 memory slot0Start = slot0;
+        require(slot0Start.unlocked, 'LOK');
+        require(
+            zeroForOne
+                ? sqrtPriceLimitX96 < slot0Start.sqrtPriceX96 && sqrtPriceLimitX96 > TickMath.MIN_SQRT_RATIO
+                : sqrtPriceLimitX96 > slot0Start.sqrtPriceX96 && sqrtPriceLimitX96 < TickMath.MAX_SQRT_RATIO,
+            'SPL'
+        );
+
+        slot0.unlocked = false;
+        SwapCache memory cache =
+            SwapCache({
+                liquidityStart: liquidity,
+                blockTimestamp: _blockTimestamp(),
+                feeProtocol: zeroForOne ? (slot0Start.feeProtocol % 16) : (slot0Start.feeProtocol >> 4),
+                secondsPerLiquidityCumulativeX128: 0,
+                tickCumulative: 0,
+                computedLatestObservation: false
+            });
+//2. 判断swap方式，exactInput还是exactOut，大于0就是前者，小于0则是后者。
+        bool exactInput = amountSpecified > 0;
+        SwapState memory state =
+            SwapState({
+                amountSpecifiedRemaining: amountSpecified,
+                amountCalculated: 0,
+                sqrtPriceX96: slot0Start.sqrtPriceX96,
+                tick: slot0Start.tick,
+                feeGrowthGlobalX128: zeroForOne ? feeGrowthGlobal0X128 : feeGrowthGlobal1X128,
+                protocolFee: 0,
+                liquidity: cache.liquidityStart
+            });
+//3.While loop 计算amount in和amount out
+        // continue swapping as long as we haven't used the entire input/output and haven't reached the price limit
+        while (state.amountSpecifiedRemaining != 0 && state.sqrtPriceX96 != sqrtPriceLimitX96) {
+    //3.1 计算时直到用户输入的需求token为0 并且 出货价格不超过输入的限价
+       	    StepComputations memory step;
+            step.sqrtPriceStartX96 = state.sqrtPriceX96;
+	//3.2 get nextTick，并得到下一个价格sqrt(P_new)，即价格区间的上界
+            (step.tickNext, step.initialized) = tickBitmap.nextInitializedTickWithinOneWord(
+                state.tick,
+                tickSpacing,
+                zeroForOne
+            );
+			
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            if (step.tickNext < TickMath.MIN_TICK) {
+                step.tickNext = TickMath.MIN_TICK;
+            } else if (step.tickNext > TickMath.MAX_TICK) {
+                step.tickNext = TickMath.MAX_TICK;
+            }
+
+            // get the price for the next tick
+            step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick(step.tickNext);//新的根号价格X96类型格式
+	//3.3 算出我们的现在的价格和对应的tick，amountIn/amountOut/手续费
+            // compute values to swap to the target tick, price limit, or point where input/output amount is exhausted
+         下面是最重要的计算：   
+       	//3.3.1我们对computeSwapStep输入`sqrtPriceX96`和`sqrtPriceNextX96`，这个是价格的区间
+       	//同时输入Liqudity，amountSpecifiedRemaining
+            (state.sqrtPriceX96, step.amountIn, step.amountOut, step.feeAmount) = SwapMath.computeSwapStep(
+                state.sqrtPriceX96,
+                (zeroForOne ? step.sqrtPriceNextX96 < sqrtPriceLimitX96 : step.sqrtPriceNextX96 > sqrtPriceLimitX96)
+                    ? sqrtPriceLimitX96
+                    : step.sqrtPriceNextX96,
+                state.liquidity,
+                state.amountSpecifiedRemaining,
+                fee
+            );
+	//3.4 根据上面的数据来更新amountSpecifiedRemaining，为了下一个循环
+            if (exactInput) {
+                state.amountSpecifiedRemaining -= (step.amountIn + step.feeAmount).toInt256();
+                state.amountCalculated = state.amountCalculated.sub(step.amountOut.toInt256());
+            } else {
+                state.amountSpecifiedRemaining += step.amountOut.toInt256();
+                state.amountCalculated = state.amountCalculated.add((step.amountIn + step.feeAmount).toInt256());
+            }
+	//3.5更新其他数据：
+            // if the protocol fee is on, calculate how much is owed, decrement feeAmount, and increment protocolFee
+            if (cache.feeProtocol > 0) {
+                uint256 delta = step.feeAmount / cache.feeProtocol;
+                step.feeAmount -= delta;
+                state.protocolFee += uint128(delta);
+            }
+
+            // update global fee tracker
+            if (state.liquidity > 0)
+                state.feeGrowthGlobalX128 += FullMath.mulDiv(step.feeAmount, FixedPoint128.Q128, state.liquidity);
+
+            // shift tick if we reached the next price
+            if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
+                // if the tick is initialized, run the tick transition
+                if (step.initialized) {
+                    // check for the placeholder value, which we replace with the actual value the first time the swap
+                    // crosses an initialized tick
+                    if (!cache.computedLatestObservation) {
+                        (cache.tickCumulative, cache.secondsPerLiquidityCumulativeX128) = observations.observeSingle(
+                            cache.blockTimestamp,
+                            0,
+                            slot0Start.tick,
+                            slot0Start.observationIndex,
+                            cache.liquidityStart,
+                            slot0Start.observationCardinality
+                        );
+                        cache.computedLatestObservation = true;
+                    }
+                    int128 liquidityNet =
+                        ticks.cross(
+                            step.tickNext,
+                            (zeroForOne ? state.feeGrowthGlobalX128 : feeGrowthGlobal0X128),
+                            (zeroForOne ? feeGrowthGlobal1X128 : state.feeGrowthGlobalX128),
+                            cache.secondsPerLiquidityCumulativeX128,
+                            cache.tickCumulative,
+                            cache.blockTimestamp
+                        );
+                    // if we're moving leftward, we interpret liquidityNet as the opposite sign
+                    // safe because liquidityNet cannot be type(int128).min
+                    if (zeroForOne) liquidityNet = -liquidityNet;
+
+                    state.liquidity = LiquidityMath.addDelta(state.liquidity, liquidityNet);
+                }
+
+                state.tick = zeroForOne ? step.tickNext - 1 : step.tickNext;
+            } else if (state.sqrtPriceX96 != step.sqrtPriceStartX96) {
+                // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
+                state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
+            }
+        }
+//4. 当知道了amountIn和amountOut，uniswap就知道了新的liquidity/sqrt(P)/tick还有手续费，下面做的就是更新数据和收取手续费
+        // update tick and write an oracle entry if the tick change
+        if (state.tick != slot0Start.tick) {
+            (uint16 observationIndex, uint16 observationCardinality) =
+                observations.write(
+                    slot0Start.observationIndex,
+                    cache.blockTimestamp,
+                    slot0Start.tick,
+                    cache.liquidityStart,
+                    slot0Start.observationCardinality,
+                    slot0Start.observationCardinalityNext
+                );
+            (slot0.sqrtPriceX96, slot0.tick, slot0.observationIndex, slot0.observationCardinality) = (
+                state.sqrtPriceX96,
+                state.tick,
+                observationIndex,
+                observationCardinality
+            );
+        } else {
+            // otherwise just update the price
+            slot0.sqrtPriceX96 = state.sqrtPriceX96;
+        }
+
+        // update liquidity if it changed
+        if (cache.liquidityStart != state.liquidity) liquidity = state.liquidity;
+
+        // update fee growth global and, if necessary, protocol fees
+        // overflow is acceptable, protocol has to withdraw before it hits type(uint128).max fees
+        if (zeroForOne) {
+            feeGrowthGlobal0X128 = state.feeGrowthGlobalX128;
+            if (state.protocolFee > 0) protocolFees.token0 += state.protocolFee;
+        } else {
+            feeGrowthGlobal1X128 = state.feeGrowthGlobalX128;
+            if (state.protocolFee > 0) protocolFees.token1 += state.protocolFee;
+        }
+
+        (amount0, amount1) = zeroForOne == exactInput
+            ? (amountSpecified - state.amountSpecifiedRemaining, state.amountCalculated)
+            : (state.amountCalculated, amountSpecified - state.amountSpecifiedRemaining);
+//5. 转钱清账并且做`uniswapV3SwapCallback`让caller合约（一般是router）转钱进来
+        // do the transfers and collect payment
+        if (zeroForOne) {
+            if (amount1 < 0) TransferHelper.safeTransfer(token1, recipient, uint256(-amount1));
+
+            uint256 balance0Before = balance0();
+            IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, data);
+            require(balance0Before.add(uint256(amount0)) <= balance0(), 'IIA');
+        } else {
+            if (amount0 < 0) TransferHelper.safeTransfer(token0, recipient, uint256(-amount0));
+
+            uint256 balance1Before = balance1();
+            IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, data);
+            require(balance1Before.add(uint256(amount1)) <= balance1(), 'IIA');
+        }
+
+        emit Swap(msg.sender, recipient, amount0, amount1, state.sqrtPriceX96, state.liquidity, state.tick);
+        slot0.unlocked = true;
+    }
+```
+
+[Video: Swap - Swap Algorithm - Uniswap V3](https://updraft.cyfrin.io/courses/uniswap-v3/swap/swap-algorithm)
+
+假设
+
+
+
+
+
+### variable notations in white paper
+
+| Type    | Variable Name        | Notation       |
+| ------- | -------------------- | -------------- |
+| uint128 | liquidity            | $ L $        |
+| uint160 | sqrtPriceX96         | $ \sqrt{P} $ |
+| int24   | tick                 | $ i_c $      |
+| uint256 | feeGrowthGlobal0X128 | $ f_{g,0} $  |
+| uint256 | feeGrowthGlobal1X128 | $ f_{g,1} $  |
+| uint128 | protocolFees.token0  | $ f_{p,0} $  |
+| uint128 | protocolFees.token1  | $ f_{p,1} $  |
+| int128  | liquidityNet                   | $ \Delta L $ |
+| uint128 | liquidityGross                 | $ L_g $      |
+| uint256 | feeGrowthOutside0X128          | $ f_{o,0} $  |
+| uint256 | feeGrowthOutside1X128          | $ f_{o,1} $  |
+| uint256 | secondsOutside                 | $ s_o $      |
+| uint256 | tickCumulativeOutside          | $ i_o $      |
+| uint256 | secondsPerLiquidityOutsideX128 | $ s_{lo} $   |
+| uint128 | liquidity                | $ l $            |
+| uint256 | feeGrowthInside0LastX128 | $ f_{r,0}(t_0) $ |
+| uint256 | feeGrowthInside1LastX128 | $ f_{r,1}(t_0) $ |
 
