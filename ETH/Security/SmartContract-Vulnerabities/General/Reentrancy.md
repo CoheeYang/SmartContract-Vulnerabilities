@@ -133,38 +133,96 @@
   只读重入(Read-only Reentrancy)是一种只针对view函数的重入攻击，view函数一般由于不修改以太坊上的状态而被人经常忽视，但是如果合约中有非常依赖Oracle/PriceFeed的返回值，且存在外部调用的函数，则这个漏洞将非常明显。
 
   ```solidity
-  // 不安全
-  contract A {
-  	// 有一个重入防护锁来防止重入
-  	// 但在外部调用发送者之后才进行状态更改
-  	function withdraw() external nonReentrant {
-  		uint256 amount = balances[msg.sender];
-  		(bool success,) = msg.sender.call{value: balances[msg.sender]}("");
-  		require(success);
-  		balances[msg.sender] = 0;
-  	}
+  // 有漏洞的合约
+  contract VulnerableBank {
+      mapping(address => uint) public balances;
+      bool private locked;
+      
+      // 存款函数
+      function deposit() external payable {
+          balances[msg.sender] += msg.value;
+      }
+      
+      // 取款函数 - 有重入漏洞
+      function withdraw(uint amount) external {
+          require(balances[msg.sender] >= amount, "Insufficient balance");
+          
+          // 先更新余额
+          balances[msg.sender] -= amount;
+          
+          // 然后转账 - 这里可能触发重入
+          (bool success, ) = msg.sender.call{value: amount}("");
+          require(success, "Transfer failed");
+      }
+      
+      // 只读函数 - 计算总余额
+      function getTotalBalance() external view returns (uint) {
+          return address(this).balance;
+      }
+      
+      // 获取用户信息和总余额
+      function getUserInfo(address user) external view returns (uint userBalance, uint totalBalance) {
+          userBalance = balances[user];
+          totalBalance = this.getTotalBalance(); // 这里可能被重入攻击！
+      }
   }
   
-  contract B {
-  	// 允许发送者claim与他们持有的A token等值的B token
-  	function claim() external nonReentrant {
-  		require(!claimed[msg.sender]);
-  		balances[msg.sender] = A.balances[msg.sender];
-  		claimed[msg.sender] = true;
-  	}
+  // 攻击者合约
+  contract Attacker {
+      VulnerableBank public bank;
+      bool private isAttacking;
+      
+      constructor(address _bank) {
+          bank = VulnerableBank(_bank);
+      }
+      
+      // 开始攻击
+      function startAttack() external payable {
+          require(msg.value > 0, "Need ETH to attack");
+          bank.deposit{value: msg.value}();
+          bank.withdraw(msg.value);
+      }
+      
+      // 回退函数 - 重入入口
+      receive() external payable {
+          if (!isAttacking) {
+              isAttacking = true;
+              
+              // 在银行合约处于不一致状态时调用只读函数
+              (uint myBalance, uint totalBalance) = bank.getUserInfo(address(this));
+              
+              // 此时银行的状态是不一致的：
+              // - 我们的余额已经减少了（在withdraw中）
+              // - 但ETH还没有转出（正在执行转账）
+              // 所以getTotalBalance()会返回错误的值
+              
+              console.log("During reentrancy - My balance:", myBalance);
+              console.log("During reentrancy - Total balance:", totalBalance);
+              
+              // 可以基于这些错误信息进行其他攻击...
+              // 比如调用依赖view函数的合约
+          }
+      }
+      
+      // 检查攻击后的状态
+      function checkState() external view {
+          (uint myBalance, uint totalBalance) = bank.getUserInfo(address(this));
+          console.log("After attack - My balance:", myBalance);
+          console.log("After attack - Total balance:", totalBalance);
+      }
   }
   ```
-
-  正如我们从上面的例子中看到的，尽管两个函数都有`nonReentrant`修饰符，但攻击者仍然可以在`A.withdraw`的回调中调用`B.claim`，由于攻击者的余额尚未更新，执行成功。
-
   
-
+  正如我们从上面的例子中看到的，尽管两个函数都有`nonReentrant`修饰符，但攻击者仍然可以在`A.withdraw`的回调中调用`B.claim`，由于攻击者的余额尚未更新，执行成功。
+  
+  
+  
   ### 重入预防
-
+  
   最简单的重入预防机制是使用[`ReentrancyGuard`](<https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/ReentrancyGuard.sol>)，它允许您向可能易受攻击的函数添加修饰符，例如`nonReentrant`。尽管它对大多数形式的重入都有效，但是只读重入可能可以绕过这一点，
-
+  
   为了获得最佳安全性，请使用**检查-效果-交互模式**（CEI），这是一种简单的智能合同函数排序规则。
-
+  
   这种结构对重入攻击有效，因为当攻击者重新进入函数时，状态更改已经完成。例如：
   
   ```solidity

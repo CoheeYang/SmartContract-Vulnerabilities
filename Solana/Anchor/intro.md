@@ -124,12 +124,23 @@ pub struct NewAccount {
 
 # 宏
 
-Anchor提供了四个基础宏
+回顾rust的宏，有
+
+- 声明式宏（vec![],println!）
+- 过程宏
+  - Custom Derive（ `#[derive(Serialize)]`， Auto-generate trait implementations）
+  - Attribute Macro（ `#[test]` ， Modify item behavior (e.g., tests）
+  -  Function-Like Macro （`sqlx::query!(...)`  ， Domain-specific code generation）
+
+
+
+Anchor提供了5个基础宏
 
 1. `declare_id`：确定程序部署在链上地址的声明式宏
 2. `#[program]`: 确定一个个包含 instruction逻辑的 module的属性宏
-3. `#[derive(Accounts)]`: 将instruction需要的数据放在一个struct中，这个struct通过该派生宏继承account trait
-4. `#[account]`上述结构体中所用的属性宏，用于创建自定义的acount type
+3. `#[derive(Accounts)]`: 将instruction需要的数据放在一个struct中，这个struct通过该派生宏继承account trait，这个宏下的结构体能使用`#[account(...)]`进行约束
+4. `#[account]`结构体中所用的属性宏，用于创建自定义的acount type。（不同于`#[account(...)]`，这个是给结构体赋值trait Bound的，只有对结构体使用了，你才能满足账户类型的要求）
+5. `#[error_code]`：定义自定义的、可读性强的错误类型，使调试更清晰、更快速。
 
 ```rust
 use anchor_lang::prelude::*;
@@ -150,8 +161,8 @@ mod hello_anchor {
     }
 }
  
-#[derive(Accounts)]
-pub struct Initialize<'info> {
+#[derive(Accounts)]//deriveAccount宏下一般是声明程序需要的所有account的信息
+pub struct Initialize<'info> { 
     #[account(init, payer = signer, space = 8 + 8)]
     pub new_account: Account<'info, NewAccount>,
     #[account(mut)]
@@ -195,13 +206,49 @@ pub struct Context<'a, 'b, 'c, 'info, T: Bumps> {
 
 比如
 
-- `#[account(init, payer = <target_account>, space = <num_bytes>)]`：
+1. `#[account(init, payer = <target_account>, space = <num_bytes>)]`：
 
-  init使得系统程序创建并初始化账户，payer指定了付租金的账户，space则写明了所占用的空间。
+init使得系统程序创建并初始化账户，payer指定了付租金的账户，space则写明了所占用的空间。
 
-  
+| Parameter        | What It Does                                                 | Security Impact                                 | Equivalent Manual Check                                      |
+| :--------------- | :----------------------------------------------------------- | :---------------------------------------------- | :----------------------------------------------------------- |
+| `init`           | Marks account for **initialization**                         | Prevents re-initialization attacks              | `if account.data_is_empty() { /* init */ } else { return Err(AlreadyInitialized) }` |
+| `payer = signer` | Specifies who pays for RAM/storage                           | Ensures user pays for resources (prevents spam) | `if !signer.is_signer { return Err(MissingSignature) }`<br>`invoke_transfer_lamports(signer, account, rent)` |
+| `space = 8 + 8`  | 一共16字节，定义了Allocates account space<br>- First 8: Anchor's discriminator<br>- Second 8: Your data (u64) | Prevents overflow attacks                       | `if account.lamports() < rent_exempt_minimum(16) { return Err(NotRentExempt) }` |
 
-- `#[account(mut)]`：保证输入的account类型是mutable的，除了对一般的accounts进行验证外，还有对SPL（Solana Program Library）程序的constraints，便于开发者对如Token程序的验证。
+其中discriminator的8个字节的内容由anchor自动生成。它存在是因为在账户的`data（[u8]）`中，存储的都是序列化后的字节数组
+
+假设你的 program 定义了多个账户类型：
+
+```
+#[account]
+pub struct CounterAccount { count: u64 }
+
+#[account]
+pub struct UserProfile { name: String, age: u8 }
+```
+
+- 这两个账户最终在链上都是字节数组。
+- 如果不区分类型，你在读取一个账户时就不知道该用 `CounterAccount` 还是 `UserProfile` 来解析。
+- **一旦解析错，可能导致严重的逻辑错误或数据破坏**。
+
+Anchor 为每个账户自动生成 **8 字节的 discriminator**：
+
+- 它是 **账户类型的唯一标识符**（类似类型标签）。
+
+- 放在账户数据开头，这样程序在读取账户时可以先检查：
+
+  ```
+  if account_data[0..8] != expected_discriminator {
+      return Err(Error::InvalidAccountType);
+  }
+  ```
+
+- 保证了不同类型账户不会混淆，同时简化了序列化/反序列化逻辑。
+
+
+
+2. `#[account(mut)]`：保证输入的account类型是mutable的，除了对一般的accounts进行验证外，还有对SPL（Solana Program Library）程序的constraints，便于开发者对如Token程序的验证。
 
 [See More Constraints](https://docs.rs/anchor-lang/latest/anchor_lang/derive.Accounts.html#constraints)
 

@@ -61,6 +61,14 @@ missing condition checks 导致读取旧数据
 
 
 
+Restriction Bypass类型：
+
+Redeem cap bypassed using `swap()`，赎回的部分有cap检查，但是swap却忘了这个检查
+
+[Covenant-security-review](https://github.com/pashov/audits/blob/master/team/md/Covenant-security-review_2025-08-18.md#m-04-redeem-cap-bypassed-using-swap)
+
+
+
 ## 5. Edge Case
 
 极端的输入值
@@ -74,4 +82,6 @@ missing condition checks 导致读取旧数据
 比如solver下线了，但是这里的settlement却需要一个activeSolver。类似的可以是比如某一个vault被移除了，但是用户存入的钱时，取出的函数却需要active Vault类似，导致vault中的钱无法取出。无法成功退出
 
 [audits-portfolio-md/Etherspot-GasTankPaymasterModule-Extended-Security-Review.md at main · shieldify-security/audits-portfolio-md](https://github.com/shieldify-security/audits-portfolio-md/blob/main/Etherspot-GasTankPaymasterModule-Extended-Security-Review.md#m-03-solver-offboarding-can-block-invoice-settlement)
+
+
 

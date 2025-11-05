@@ -7,12 +7,16 @@
 比如多段式执行一个特定的任务；"用户A发出deposit/withdraw请求，但是这个请求会被keeper或者admin来执行，并非调用deposit/withdraw后直接执行." 这种模式就得考虑如果有cancel/expired request或者被特定的输入卡住request（比如输入一个USDC backlisted address作为接收者）会怎么样。
 
 1. **Multi-Step**:通常这些用户请求的任务会在后续异步执行，而不是直接请求直接执行的任务
+
 2. **State Machine**：涉及了全局/部分的状态，使用enum来管理这些状态的情况。
-3. **Economic Incentive Design**：staking/vesting reward，bonding curve的设计
-4. **DAO**
-5. **Batching Process**:批量执行
-6. **Cross-Chain**
-7. **Liquidation：**杠杆/保证金模式下清算的漏洞（稳定币/借贷/杠杆理财项目中）
+
+3. **DAO**
+
+4. **Batching Process**:批量执行
+
+5. **Cross-Chain**
+
+7. **Liquidation：**杠杆/保证金模式下清算的漏洞（稳定币/借贷/杠杆理财项目中，关于资产不抵债情况的例子）
 
 
 
@@ -36,14 +40,6 @@
 
 
 
-### Economic Incentive Design
-一个staking逻辑错误，提前更新了stake的时间
-另外一个RewardRate可修改，导致前后的奖励率不一致
-https://github.com/shieldify-security/audits-portfolio-md/blob/main/HoneypotFinance-NFTStaking-Security-Review.md#7-findings
-
-
-
-
 
 ### Batching Process
 
@@ -59,3 +55,21 @@ https://github.com/shieldify-security/audits-portfolio-md/blob/main/HoneypotFina
 7. **状态不一致**：批量操作可能读取同一状态多次，如果在操作过程中状态发生变化，可能导致不一致。
 8. msg.value的漏洞
 
+
+
+
+
+### Liquidation
+
+mint中会检查`_checkUnderCollateralized`全局债务
+
+```
+攻击者在市场早期执行：
+1. 作为首批流动性提供者，存入少量baseToken
+2. 获得aToken(杠杆代币)和zToken(债务代币)
+3. 将大部分aToken通过swap换成zToken
+   → 结果：攻击者持有不成比例的大量zToken(债务)
+   一旦市场下跌就会导致mint被`_checkUnderCollateralized`所卡住，从而使得其他人无法提供流动性
+```
+
+[Early market can be DoSed by over-minting debt](https://github.com/pashov/audits/blob/master/team/md/Covenant-security-review_2025-08-18.md#m-05-early-market-can-be-dosed-by-over-minting-debt)

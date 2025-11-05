@@ -257,7 +257,11 @@ print(P)
 
 ## 2.2 Liqudity Provide
 
-### Mint 
+### Mint
+
+`UniswapV3Pool::mint()`允许用户向池中提供流动性，并用一个mapping来记录仓位，这个方法在计算完需要的token后会向流动性提供者发出`uniswapV3MintCallback`以获得token。此方法本身面向的是nfpm，而非一般用户。
+
+[v3-core](https://github.com/Uniswap/v3-core/blob/main/contracts/UniswapV3Pool.sol)
 
 ```solidity
     /// @inheritdoc IUniswapV3PoolActions
@@ -271,8 +275,7 @@ print(P)
     ) external override lock returns (uint256 amount0, uint256 amount1)//返回需要的两个token的值
     {
         require(amount > 0);
-        (, int256 amount0Int, int256 amount1Int) =
-            _modifyPosition(
+        (, int256 amount0Int, int256 amount1Int) =_modifyPosition(
                 ModifyPositionParams({
                     owner: recipient,
                     tickLower: tickLower,
@@ -366,6 +369,116 @@ print(P)
         }
     }
 ```
+
+
+
+```solidity
+    /// @dev Gets and updates a position with the given liquidity delta
+    /// @param owner the owner of the position
+    /// @param tickLower the lower tick of the position's tick range
+    /// @param tickUpper the upper tick of the position's tick range
+    /// @param tick the current tick, passed to avoid sloads
+    function _updatePosition(
+        address owner,
+        int24 tickLower,
+        int24 tickUpper,
+        int128 liquidityDelta,
+        int24 tick
+    ) private returns (Position.Info storage position) {
+        position = positions.get(owner, tickLower, tickUpper);
+// uniswapV3使用一个mapping作为存储用户仓位信息的方法        
+// function get(
+//        mapping(bytes32 => Info) storage self,
+//        address owner,
+//        int24 tickLower,
+//        int24 tickUpper
+//    ) internal view returns (Position.Info storage position) {
+//        position = self[keccak256(abi.encodePacked(owner, tickLower, tickUpper))];
+//    }
+
+// struct Info {
+        // the amount of liquidity owned by this position
+//        uint128 liquidity;
+        // fee growth per unit of liquidity as of the last update to liquidity or fees owed
+//         uint256 feeGrowthInside0LastX128;
+//         uint256 feeGrowthInside1LastX128;
+        // the fees owed to the position owner in token0/token1
+//         uint128 tokensOwed0;
+//         uint128 tokensOwed1;
+//     }
+        
+
+        uint256 _feeGrowthGlobal0X128 = feeGrowthGlobal0X128; // SLOAD for gas optimization
+        uint256 _feeGrowthGlobal1X128 = feeGrowthGlobal1X128; // SLOAD for gas optimization
+
+        // if we need to update the ticks, do it
+        bool flippedLower;
+        bool flippedUpper;
+        if (liquidityDelta != 0) {
+            uint32 time = _blockTimestamp();
+            (int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128) =
+                observations.observeSingle(
+                    time,
+                    0,
+                    slot0.tick,
+                    slot0.observationIndex,
+                    liquidity,
+                    slot0.observationCardinality
+                );
+
+            flippedLower = ticks.update(
+                tickLower,
+                tick,
+                liquidityDelta,
+                _feeGrowthGlobal0X128,
+                _feeGrowthGlobal1X128,
+                secondsPerLiquidityCumulativeX128,
+                tickCumulative,
+                time,
+                false,
+                maxLiquidityPerTick
+            );
+            flippedUpper = ticks.update(
+                tickUpper,
+                tick,
+                liquidityDelta,
+                _feeGrowthGlobal0X128,
+                _feeGrowthGlobal1X128,
+                secondsPerLiquidityCumulativeX128,
+                tickCumulative,
+                time,
+                true,
+                maxLiquidityPerTick
+            );
+
+            if (flippedLower) {
+                tickBitmap.flipTick(tickLower, tickSpacing);
+            }
+            if (flippedUpper) {
+                tickBitmap.flipTick(tickUpper, tickSpacing);
+            }
+        }
+
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            ticks.getFeeGrowthInside(tickLower, tickUpper, tick, _feeGrowthGlobal0X128, _feeGrowthGlobal1X128);
+
+        position.update(liquidityDelta, feeGrowthInside0X128, feeGrowthInside1X128);
+
+        // clear any tick data that is no longer needed
+        if (liquidityDelta < 0) {
+            if (flippedLower) {
+                ticks.clear(tickLower);
+            }
+            if (flippedUpper) {
+                ticks.clear(tickUpper);
+            }
+        }
+    }
+```
+
+
+
+
 
 
 

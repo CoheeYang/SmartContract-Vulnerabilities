@@ -47,6 +47,14 @@ function function5() external view returns (uint256) {
     uint256 y= x *block.number;
    return block.number;
 }
+
+//非字面量会拿最大的那个空间，uint8.max *uint256变uint256不会出现revert
+function ff(uint256 y) external pure returns(uint256)
+{uint8 x = 128;
+uint256 z = x*y;
+return z;
+}
+
 ```
 
 

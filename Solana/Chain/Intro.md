@@ -478,8 +478,8 @@ pub struct CompiledInstruction {
 总结地来讲，每一个单独的一个Instruction需要如下的信息：
 
 ```rust
-program_id: xxx  //接收指令的program地址
-accounts: [ aaa, aaa ] //指令中所涉及的账户地址
+program_id: xxx  //接收指令的program地址的index
+accounts: [ aaa, aaa ] //指令中所涉及的账户地址的index（最终以AccountInfo格式信息）
 instruction_data: b[]  //intruction数据，bytes形式，但是可以被去序列化为rust语言告诉program该做什么
 ```
 
