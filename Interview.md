@@ -118,3 +118,5 @@
 31. 什么是 zk-friendly 哈希函数，它与非 zk-friendly 哈希函数有何不同？
 32. 在零知识的背景下，什么是 nullifier，它的用途是什么？
 33. 
+
+[Over 150 interview questions for Ethereum Developers | By RareSkills – RareSkills](https://rareskills.io/post/solidity-interview-questions#advanced)
