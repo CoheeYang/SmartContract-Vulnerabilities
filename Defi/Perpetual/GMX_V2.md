@@ -6,7 +6,7 @@
 
 ## 1. 项目架构
 
-![gmx_v2_contracts.png](https://github.com/Cyfrin/defi-gmx-v2/blob/main/notes/gmx_v2_contracts.png?raw=true)
+![gmx_v2_contracts.png](../../resources/gmx_v2_contracts.png)
 
 [GMX_V2](https://github.com/gmx-io/gmx-synthetics/tree/main)中和uniswap用于使用Router作为用户层面的抽象，用来聚合一系列命令。
 

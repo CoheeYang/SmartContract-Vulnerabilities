@@ -726,6 +726,52 @@ swapTokensForExactTokens的做法类似，它是确定了out的数量，而非in
 
 #### TWAP
 
+之前我们写过的`update`函数都经过了简化，去除掉了关于TWAP（时间加权价格）的记录。而uniswapV2中的update如下：
+
+```solidity
+    // update reserves and, on the first call per block, price accumulators
+    function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
+        require(balance0 <= uint112(-1) && balance1 <= uint112(-1), 'UniswapV2: OVERFLOW');
+
+        uint32 blockTimestamp = uint32(block.timestamp % 2**32);//用uint32存的话2106年会溢出
+        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
+            // * never overflows, and + overflow is desired
+            price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
+            price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
+        }
+        reserve0 = uint112(balance0);
+        reserve1 = uint112(balance1);
+        blockTimestampLast = blockTimestamp;
+        emit Sync(reserve0, reserve1);
+    }
+```
+
+Uniswap v2 维护一个**累加器**``priceCumulativeLast`，用于存储从合约开始运行以来**每个时间点（每秒）的价格总和**。具体来说：
+$$
+a_t = \sum_{i=1}^{t} p_i
+$$
+其中：
+
+- $p_i$ 是第 *i* 秒时的价格（如果该秒没有交易，则沿用上一个价格）
+- $a_t$ 是从开始到时间 *t* 的累计价格和
+
+这样，就会有上面代码中的记录方式：
+
+每次在新区块中第一次交易时，合约会：
+
+- 获取当前价格`reserve0/reserve1`
+- 计算自上次更新以来经过的时间 Δt
+- 将 p×Δt 加到累加器中
+
+这样得到每秒钟的价格的总累计数，可以做差分来获得一个时间加权的价格$p_{twap}$：
+$$
+p_{twap} = \frac{p_a-p_b}{t_a-t_b}
+$$
+要找到最近的价格我们就可以用当前的`price0CumulativeLast`减去上一次合约中的`price0CumulativeLast`的差，除以当前`blockTimestampLast`和上次`blockTimestampLast`的差值。
+
+（uniswapV3中对TWAP做了更好的改良，记得会对比其前后方法的差别）
+
 
 
 #### Skim& Sync
@@ -1130,7 +1176,7 @@ $$
 $$
 - x \Delta y + y \Delta x - \Delta x \Delta y = 0
 $$
-对于**小额交易**时（即 $\Delta x$ 和 $\Delta y$ 对$x,y$ 很小），二阶项 $\Delta x \Delta y$ 可以忽略不计，因此：
+对于**小额交易**时（即 $\Delta x$ 和 $\Delta y$ 对$x,y$ 很小），二阶项 $\Delta x \Delta y$ 可以忽略不计，因此：
 
 $$
 y \Delta x \approx x \Delta y \\
@@ -1143,7 +1189,7 @@ $$
 
 否则，对于$- x \Delta y + y \Delta x - \Delta x \Delta y = 0$，会有：
 $$
-\frac{\Delta y}{\Delta x} = \frac{y}{x} +\frac{\Delta y}{x}
+\frac{\Delta y}{\Delta x} = \frac{y}{x} -\frac{\Delta y}{x}
 $$
 而对于套利者，它们会不断地套利使得$\frac{\Delta y}{\Delta x} = p_{market} $，此时
 $$

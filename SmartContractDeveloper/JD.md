@@ -64,6 +64,53 @@ EVM智能合约开发工程师
 7、跟踪行业安全事件，建立合约漏洞监控与应急响应机制
 ```
 
+```solidity
+Senior Smart Contract Engineer
+About Us
+We’re a mission-driven Web3 organization operating at the forefront of decentralized innovation. We believe blockchain technology has the power to fundamentally reshape the way people build, work, govern, and exchange value across the globe. Our work spans smart contracts, decentralized protocols, node networks, and data-driven blockchain tooling that empower individuals and communities.
+
+We're a fast-paced, async-first, fully remote team made up of incredibly talented contractors around the world. Every day, we’re amazed by the creativity, integrity, and dedication of the people we work with — and we’re just getting started.
+
+We believe in building with purpose, collaborating without ego, and shipping products that actually matter. If you're looking to do meaningful work in an environment that values autonomy, impact, and trust, you're in the right place.
+
+Role Overview
+We are looking for a Senior Smart Contract Engineer who is deeply experienced in Solidity, EVM-compatible networks, and decentralized data or node-based protocols. You will be responsible for architecting, implementing, and deploying secure and scalable smart contracts that power our on-chain ecosystem.
+
+You’ll collaborate closely with full-stack engineers, product managers, and protocol designers to bring new decentralized applications, protocol integrations, and on-chain logic to life. This role is ideal for someone who has built and deployed production-grade contracts, understands decentralized systems end-to-end, and can speak confidently about previous audit results, gas optimization strategies, and mainnet deployments.
+
+Key Responsibilities
+Design, develop, and deploy secure, efficient, and upgradable smart contracts in Solidity
+Architect and implement protocol-level features for decentralized and data-centric systems
+Integrate smart contracts with node networks, decentralized oracles, and data layers
+Collaborate with backend and frontend engineers to connect contracts using Web3.js, ethers.js, or wagmi
+Write and maintain comprehensive unit, integration, and fuzz tests using Hardhat, Foundry, or similar frameworks
+Participate in internal reviews and support external audits for all smart contract code
+Monitor and optimize gas usage, security, and contract performance post-deployment
+Contribute to open-source repositories, developer tooling, and technical documentation
+Requirements
+4+ years of experience developing and deploying Solidity smart contracts
+Deep understanding of EVM internals, contract lifecycle management, and security best practices
+Proven experience with decentralized protocols, data infrastructure, or node-based systems
+Strong grasp of cryptographic primitives, state management, and transaction flows
+Experience integrating contracts with off-chain services via backend languages (Node.js, Go, or Python)
+Familiarity with CI/CD pipelines, Git workflows, and Web3 infrastructure
+Excellent async communication, documentation, and collaboration skills in distributed teams
+Preferred Qualifications
+Experience working on DeFi, staking, governance, or data protocols
+Hands-on experience with Layer 2 solutions, bridges, or cross-chain communication
+Background with validator / node operations, indexing, or on-chain data aggregation
+Involvement in protocol audits, security reviews, or bug bounty programs
+Contributions to open-source projects or a visible GitHub portfolio of smart contracts
+Example Projects / Deliverables
+To help us understand your experience, please include examples such as:
+
+Links to deployed smart contracts (Etherscan, Polygonscan, etc.)
+GitHub repositories or code samples of Solidity contracts you’ve written
+Audit reports or security reviews you’ve contributed to
+Protocol documentation or whitepapers you’ve helped design or implement
+Demonstrable, hands-on experience with smart contracts and decentralized protocols will be heavily weighted in our evaluation process.
+```
+
 
 
 
