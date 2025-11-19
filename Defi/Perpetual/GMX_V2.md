@@ -114,7 +114,7 @@ LP会面临两种可提供流动性的池子：
 
 
 
-#### 2. Short 
+#### 2. Short
 
 - Short Market: Increase a short position at the current price.
 - Short Limit: Increase a short position when the price is above the trigger price.

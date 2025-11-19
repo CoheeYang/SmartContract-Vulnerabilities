@@ -51,7 +51,7 @@ $$
 
 于是人们想到了另外一个恒等式$x+y=k$，即$y=k-x$，我们对其求导，就知道$dy=-dx$永远在值域中成立。
 
-问题是这个函数的缺点是有限的值域，即$x\in [0,k]$ ，允许$x,y$ 归零，且1个代币A永远能换1个代币B。
+问题是这个函数的缺点是有限的值域，即$x\in [0,k]$ ，允许$x,y$ 归零，且1个代币A永远能换1个代币B。
 
 如果市场价一旦不是严格的1:1，套利者会瞬间掏空其中一种代币，导致池子失效。
 
@@ -119,7 +119,7 @@ where:
 $$
 \chi = \frac{A\prod^n_{i=1} x_i}{(D/n)^2}
 $$
-其中$A$ 对应我们之前的常数$c$,  $D$ 对应$k$.
+其中$A$ 对应我们之前的常数$c$,  $D$ 对应$k$.
 
 
 
@@ -131,32 +131,7 @@ $$
 
 
 
-# Economic Incentive Design
 
-Curve早先是以低费率的稳定币互换闻名的。后续由因其出色的token economic设计
-
-**Economic Incentive Design**：staking/vesting reward，bonding curve，gauge system的设计
-
-VotingEscrows&Gauge模式：
-
-通常出现在AMM/Lending 协议中，此类协议有多种代币市场，为了让资金的提供方和项目方利益绑定，会基于这些资金提供方一些随stake时间增长的投票代币奖励。
-
-以Curve为例，当用户提供流动性给AMM后会获得流动性LP代币，会分得项目方赚取的手续费。
-
-此LP代币可以进一步`stake`。
-
-- `stake`将质押在`Reward Gauge`合约中，以获得通胀所分发的代币。其中`Reward Gauge`会需要DAO的vote&approval，且有一个gauge weight 作为emission的权重。
-- Stake后可以将`Curve`代币 lock会获得vote-escrowed CRV（veCRV）和2.5倍的`CRV`获取率，lock期间无法取走`CRV`，且`lock`本身会先`stake`才能进行以获得2.5倍boost，故只持有`veCRV`也并不代表获得`CRV`的权利。`veCRV`只能作为投票和获得DAO收入的门票。
-
-![CRV Matrix](../../../resources/crv-matrix.svg)
-
-这种设计使得资方更希望获得越来越多的投票权`veCRV`以将其`Reward Gauge`的权重增加，从而获得更多的代币，从而促进其积极参与治理和提供流动性。
-
-这种设计也催生了`Bribe`系统，即部分项目方提供现成奖励使得`veCRV`的散户对其`Gauge`进行投票。散户能快速变现同时部分庄家也获得了更高的权重获得更多的手续费收入。
-
-
-
-投票权重记录check
 
 # ref
 
