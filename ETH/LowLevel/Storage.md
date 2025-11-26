@@ -807,6 +807,8 @@ assembly {
     mstore(0x20, b)        // scratch[32:64]
     let h := keccak256(0x00, 0x40) // hash 两个 word
 }
+//mstore(offset,value)中，offset永远按字节数来算
+//比如纯数字mstore(32,value)，对应的就是[32:64]
 ```
 
 zero slot作为一个默认零值槽，主要是作为动态数组的初始值，比如
@@ -884,7 +886,7 @@ contract MemBasic {
 
 - 结构体：`MyStruct memory st;`
 -  静态数组：`uint[5] memory arr;`
-- 动态数据类型：`uint[] memory arr;  bytes memory b;  string memory s; `
+- 动态数据类型：`uint[] memory arr;  bytes memory b;  string memory s; `
 
 而其他的所有数据类型包括`bytes32`，都小于32字节，能被EVM的stack所容纳，不会使用memory，如果对这些变量声明memory则会报错。
 
@@ -987,7 +989,7 @@ contract MemoryTest {
 		assembly {
 			//指向c0
 			prt2 := mload(0x40)
-			//存入长度5
+			//存入长度5，即string的字节数
 			data1 := mload(0x80)
 			//存入了数据
 			data2 := mload(0xa0)
@@ -1192,11 +1194,86 @@ contract MemExp {
 
 
 
+# 3.Calldata
+
+
+
+## 3.1 msg.xxx
+
+假设我的函数有多个call frame，请问msg.data里包含的calldata是哪个call 的信息，是原始fn0函数接受到的calldata还是fn1所收到fn1的calldata？
+
+答案是：**msg.data 包含的是 fn0（原始入口函数）接收到的 Calldata。**
+
+核心原因
+
+在 Solidity 中，**internal（内部）函数调用**和外部调用（external call）有本质的区别：
+
+1. **Internal Call (fn1)**:
+   - 内部函数调用在 EVM 层面**不会**发起新的 CALL、STATICCALL 或 DELEGATECALL 指令。
+   - 它们仅仅是代码执行流程的跳转（JUMP 指令）。
+   - 因此，**执行上下文（Context）没有改变**。msg.sender、msg.value 和 **msg.data** 仍然保持为当前交易（或当前外部调用）的原始值。
+   - fn1 的参数是通过栈（Stack）或内存（Memory）传递的，而不是通过 Calldata 传递的。
+2. **External Call (fn0)**:
+   - 这是合约的入口，它接收了来自外部的 Calldata。
+
+```
+    function fn0() external pure returns(bytes memory data) {
+    // 假设调用 fn0()，此时 msg.data = 函数选择器(fn0)
+    return fn1();
+}
+
+function fn1() internal view returns(bytes memory data) {
+    // 这里是 internal 调用，上下文未变
+    // msg.data 依然是 fn0 的 calldata
+    return data = msg.data; 
+}
+  
+```
+
+- 当你从外部调用 fn0 时，msg.data 的内容是 fn0 的函数选择器（Function Selector, 前4个字节）加上任何传递给 fn0 的参数编码。
+- 进入 fn1 后，因为是内部跳转，msg.data 指针没有变，它指的依然是内存中那段原始的请求数据。
+
+对比：如果 fn1 是通过外部方式调用
+
+只有一种情况 msg.data 会变成 fn1 的信息，那就是你显式地发起了一个**外部调用**（即使是在合约内部调用自己）：
+
+```
+    function fn0() external view returns(bytes memory) {
+    // 下面这行代码会发起一个新的 EVM CALL
+    // 此时 fn1 内的 msg.data 就会变成 fn1 的 calldata
+    return this.fn1(); 
+}
+
+function fn1() public view returns(bytes memory) { 
+    return msg.data;
+}
+  
+```
+
+但在你的示例中，你使用的是直接调用 fn1() 且 fn1 定义为 internal，所以答案肯定是 **fn0 的 calldata**。
 
 
 
 
-# Assembly 
+
+# 4. Transient
+
+> Transient manipulate state that behaves identically to storage, except that transient storage is discarded after every transaction, and `TSTORE` is not subject to the gas stipend check as defined in [EIP-2200](https://eips.ethereum.org/EIPS/eip-2200). In other words, the values of transient storage are **never deserialized from storage or serialized to storage.** Thus transient storage is cheaper since it never requires disk access.
+
+1. transient变量不和storage共用存储空间，同样的位置的slot不会影响storage slot。
+2. `tload/tstore`操作码没有storage那般复杂的动态gas费机制，它们只需要100gas
+
+
+
+
+
+
+
+# 5.Assembly
+
+## 5.1 Basic
+
+### 5.1.1 return/revert/keccak
 
 和一般的编程语言一样，如果调用内部函数返回的是一般的uint256等较小的数据，返回值会直接被存入stack中/
 
@@ -1243,117 +1320,6 @@ contract MemInternalFuncReturn {
     }
 }
 ```
-
-
-
-
-ABI编码规则：
-
-```solidity
-contract ABIEncode {
-    // js code to split string into chunks of length 64
-    // str.match(/.{1,64}/g)
-	//1.小于32字节值，会被左边填满0
-    // Value types < 32 bytes -> zero padded on the left side
-    // 0x000000000000000000000000abababababababababababababababababababab
-    function encode_addr() public pure returns (bytes memory) {
-        address addr = 0xABaBaBaBABabABabAbAbABAbABabababaBaBABaB;
-        return abi.encode(addr);
-    }
-	//2.固定大小的字节则是右边填满0
-    // Fixed sized bytes -> zero padded on the right side
-    // 0xaabbccdd00000000000000000000000000000000000000000000000000000000
-    function encode_bytes4() public pure returns (bytes memory) {
-        bytes4 b4 = 0xaabbccdd;
-        return abi.encode(b4);
-    }
-	//3.动态变量数据会有偏移量+length+data
-    // Dynamic size types
-    // offset | length | data
-    // offset = 32 bytes index where data starts
-    // length = 32 bytes data length
-
-    // 0x0000000000000000000000000000000000000000000000000000000000000020(因为没有其他变量，所以只会指向03的槽)
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    //   ababab0000000000000000000000000000000000000000000000000000000000
-    function encode_bytes() public pure returns (bytes memory) {
-        bytes memory b = new bytes(3);
-        b[0] = 0xab;
-        b[1] = 0xab;
-        b[2] = 0xab;
-        return abi.encode(b);
-    }
-
-    // 0x0000000000000000000000000000000000000000000000000000000000000020
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    //   0000000000000000000000000000000000000000000000000000000000000001
-    //   0000000000000000000000000000000000000000000000000000000000000002
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    function encode_uint8_arr() public pure returns (bytes memory) {
-        uint8[] memory a = new uint8[](3);
-        a[0] = 1;
-        a[1] = 2;
-        a[2] = 3;
-        return abi.encode(a);
-    }
-	
-	//4.固定大小则就是填满
-    // Fixed size arrays
-    // 0x0000000000000000000000000000000000000000000000000000000000000001
-    //   0000000000000000000000000000000000000000000000000000000000000002
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    function encode_uint256_fixed_size_arr()
-        public
-        pure
-        returns (bytes memory)
-    {
-        uint8[3] memory a;
-        a[0] = 1;
-        a[1] = 2;
-        a[2] = 3;
-        return abi.encode(a);
-    }
-
-    // Struct
-    struct Point {
-        uint256 x;
-        uint128 y;
-        uint128 z;
-    }
-	
-    // 0x0000000000000000000000000000000000000000000000000000000000000001
-    //   0000000000000000000000000000000000000000000000000000000000000002
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    function encode_struct() public pure returns (bytes memory) {
-        Point memory p = Point(1, 2, 3);
-        return abi.encode(p);
-    }
-	
-    // Dynamic sized array of structs
-    // offset | length | struct data
-    // 0x0000000000000000000000000000000000000000000000000000000000000020
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    //   0000000000000000000000000000000000000000000000000000000000000001
-    //   0000000000000000000000000000000000000000000000000000000000000002
-    //   0000000000000000000000000000000000000000000000000000000000000003
-    //   0000000000000000000000000000000000000000000000000000000000000004
-    //   0000000000000000000000000000000000000000000000000000000000000005
-    //   0000000000000000000000000000000000000000000000000000000000000006
-    //   0000000000000000000000000000000000000000000000000000000000000007
-    //   0000000000000000000000000000000000000000000000000000000000000008
-    //   0000000000000000000000000000000000000000000000000000000000000009
-    function encode_struct_array() public pure returns (bytes memory) {
-        Point[] memory arr = new Point[](3);
-        arr[0] = Point(1, 2, 3);
-        arr[1] = Point(4, 5, 6);
-        arr[2] = Point(7, 8, 9);
-        return abi.encode(arr);
-    }
-}
-```
-
-
-
 
 下面是如何将数据return的assemly展示，`return()`需要两个参数，一个是memory的起始位置，第二个是长度length，从而在内存中将数据return出去。一旦调用该opcode，函数的允许也会终止。
 
@@ -1447,6 +1413,239 @@ contract MemKeccak {
     }
 }
 ```
+
+### 5.1.2 memory-safe
+
+部分使用汇编开发时会看见`assembly("memory-safe"){}`的模式，这种模式主要是由于Yul的IR编译优化涉及把**局部变量放到内存、重用内存区域、避免 stack-too-deep**。
+
+这种优化依赖solidity默认的内存模型，而汇编可以随意改变内存，所以当`assembly`中存在内存操作时，这种优化会被默认关闭。
+
+当声明`"memory-safe"` 时，就是在告诉编译器，虽然我的汇编存在内存操作，但是合法不会造成内存模型的破坏，从而叫编译器打开优化。
+
+此时你的汇编只应该操作以下的内存
+
+- **被你自己更新过指针的内存**
+
+  比如使用函数，每次空闲指针指向的位置被占有后，你得更新指针，保证指针指向的地方是空的，要不然到时候IR会把局部变量放在内存上，覆盖指针的数据
+
+  ```solidity
+  function allocate(length) -> pos {
+    pos := mload(0x40)           // 读 free memory pointer
+    mstore(0x40, add(pos, length)) // 更新 free pointer，表示你“拿走”这段内存
+  }
+  ```
+
+- **Solidity更新过的内存**
+
+  比如你创建的bytes memory b = new bytes(n)，这种情况下，指针已经发生更新。而那些bytes数据对应的内存可以随意更改
+
+- **The scratch space between memory offset 0 and 64**
+
+  scratch space就是给你玩的，但是它只有64字节。所以如果数据过大，则会把数据覆盖到0x40，导致指针数据错乱
+
+  比如下面的操作将returndata的数据从0-size放到0开始的内存，但是这是危险的，因为返回的数据可能超过64字节
+
+  ```solidity
+  assembly {
+    returndatacopy(0, 0, returndatasize())
+    revert(0, returndatasize())
+  }
+  最佳操作是找到指针的空内存地址，将数据放过去后revert，此时由于revert了，也没更新指针指向：
+  assembly ("memory-safe") {
+    let p := mload(0x40)
+    returndatacopy(p, 0, returndatasize())
+    revert(p, returndatasize())
+  }
+  ```
+
+- 初次使用`mload(0x40)`时，只将这部分内存区域作为**缓存区域**，当assembly执行完后，指针还是指向这些内存，而后续的solidity代码会覆盖这些内存，而这种覆盖不会导致任何问题的时候。
+
+  说白了就是省了`mstore`不会发生问题的时候，你在汇编中使用临时内存无所谓的情况，比如之前的revert例子，已经revert了无所谓更新不更新指针。
+
+
+
+当然这些规则并不完全死板，你当然可以在会汇编中随意操作内存，甚至改写`0x40`的指针和zero slot为数据内容，只要你在最终结束时重新写回正确的样式，
+
+保证这些地址在高级语言中正常工作就可以（或者在结束后根本没有高级内容）。
+
+
+
+
+
+## 5.2 ABI：
+
+编码：
+
+```solidity
+contract ABIEncode {
+    // js code to split string into chunks of length 64
+    // str.match(/.{1,64}/g)
+	//1.小于32字节值，会被左边填满0
+    // Value types < 32 bytes -> zero padded on the left side
+    // 0x000000000000000000000000abababababababababababababababababababab
+    function encode_addr() public pure returns (bytes memory) {
+        address addr = 0xABaBaBaBABabABabAbAbABAbABabababaBaBABaB;
+        return abi.encode(addr);
+    }
+	//2.固定大小的字节则是右边填满0
+	//如果你对一个字节数进行casting，比如bytes16->bytes32
+	//这个也是一样的，会将右侧填满0，这是因为字节数会和数组一样，它是在屁股后面填充数据的
+    // Fixed sized bytes -> zero padded on the right side
+    // 0xaabbccdd00000000000000000000000000000000000000000000000000000000
+    function encode_bytes4() public pure returns (bytes memory) {
+        bytes4 b4 = 0xaabbccdd;
+        return abi.encode(b4);
+    }
+	//3.动态变量数据会有偏移量+length+data
+    // Dynamic size types
+    // offset | length | data
+    // offset = 32 bytes index where data starts
+    // length = 32 bytes data length
+
+    // 0x0000000000000000000000000000000000000000000000000000000000000020(因为没有其他变量，所以只会指向03的槽)
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    //   ababab0000000000000000000000000000000000000000000000000000000000
+    function encode_bytes() public pure returns (bytes memory) {
+        bytes memory b = new bytes(3);
+        b[0] = 0xab;
+        b[1] = 0xab;
+        b[2] = 0xab;
+        return abi.encode(b);
+    }
+
+    // 0x0000000000000000000000000000000000000000000000000000000000000020
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    //   0000000000000000000000000000000000000000000000000000000000000001
+    //   0000000000000000000000000000000000000000000000000000000000000002
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    function encode_uint8_arr() public pure returns (bytes memory) {
+        uint8[] memory a = new uint8[](3);
+        a[0] = 1;
+        a[1] = 2;
+        a[2] = 3;
+        return abi.encode(a);
+    }
+	
+	//4.固定大小则就是填满
+    // Fixed size arrays
+    // 0x0000000000000000000000000000000000000000000000000000000000000001
+    //   0000000000000000000000000000000000000000000000000000000000000002
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    function encode_uint256_fixed_size_arr()
+        public
+        pure
+        returns (bytes memory)
+    {
+        uint8[3] memory a;
+        a[0] = 1;
+        a[1] = 2;
+        a[2] = 3;
+        return abi.encode(a);
+    }
+
+    // Struct
+    struct Point {
+        uint256 x;
+        uint128 y;
+        uint128 z;
+    }
+	
+    // 0x0000000000000000000000000000000000000000000000000000000000000001
+    //   0000000000000000000000000000000000000000000000000000000000000002
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    function encode_struct() public pure returns (bytes memory) {
+        Point memory p = Point(1, 2, 3);
+        return abi.encode(p);
+    }
+	
+    // 5.Dynamic sized array of structs
+    // offset | length | struct data
+    // 0x0000000000000000000000000000000000000000000000000000000000000020
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    //   0000000000000000000000000000000000000000000000000000000000000001
+    //   0000000000000000000000000000000000000000000000000000000000000002
+    //   0000000000000000000000000000000000000000000000000000000000000003
+    //   0000000000000000000000000000000000000000000000000000000000000004
+    //   0000000000000000000000000000000000000000000000000000000000000005
+    //   0000000000000000000000000000000000000000000000000000000000000006
+    //   0000000000000000000000000000000000000000000000000000000000000007
+    //   0000000000000000000000000000000000000000000000000000000000000008
+    //   0000000000000000000000000000000000000000000000000000000000000009
+    function encode_struct_array() public pure returns (bytes memory) {
+        Point[] memory arr = new Point[](3);
+        arr[0] = Point(1, 2, 3);
+        arr[1] = Point(4, 5, 6);
+        arr[2] = Point(7, 8, 9);
+        return abi.encode(arr);
+    }
+}
+```
+
+
+
+解码规则就是将按编码规则和输入类型进行解码，其输入必须是bytes memory类型
+
+- **静态类型**（如 uint256, address, bool）：数据在编码中占据固定的 32 字节。如果是 uint8，也会被填充零扩展到 32 字节。
+- **动态类型**（如 bytes, string, T[]）：在“头部”区域只存储一个 32 字节的**偏移量（offset）**，该偏移量指向数据实际存储的地方，而存储的地方则是按`length|data`的padding组合。
+
+值得注意的是，当你使用`abi.decode(data,(动态数据))`时，会进行如下检查
+
+- **越界检查**：如果编码数据声称某个动态数组长度为 100，但提供的 bytes 数据总长度不够，交易会 **Revert**（长度过了没关系，但是短了会revert）。
+- **格式检查**：确保偏移量指向有效的位置，如果offset指向的数据是空也会revert
+
+比如以下面的动态数组`uint256[]`为例
+
+```solidity
+contract DecodeSafetyCheck {
+ 
+    function attemptDecode(bytes calldata data) external pure returns (uint256[] memory) {
+        // 这里尝试将输入的字节解码为 uint数组
+        // 如果 data 的长度不符合 data 内部声明的长度，这里应该 Revert
+        // 注意这里calldata自动拷贝到了memory中
+        return abi.decode(data, (uint256[]));
+    }
+
+    function proveSafetyCheck() public view returns (string memory result, string memory reason) {
+        
+        // --- 构造恶意数据 ---
+        // 第一部分：Offset（偏移量）。
+        // 设置为 32 (0x20)，表示数组长度信息存储在紧接这 32 字节之后的位置。
+        bytes memory offset = abi.encode(uint256(32)); 
+        // 第二部分：Length（数组长度）。
+        // 我们撒谎说这个数组有 2 个元素！
+        // 正常情况下，这意味着后面应该还有 2 * 32 = 64 字节的数据。
+        bytes memory fakeLength = abi.encode(uint256(2));
+        
+        //但是我们却只给了1个数据，1
+        bytes memory malformedData = abi.encodePacked(offset, fakeLength,uint256(1));
+
+        // --- 执行测试 ---
+        this.attemptDecode(malformedData);
+        //如果你将上面的数据增加多个uint256(1)，使得数据确实大于等于2，都会正常decode
+    }
+}
+```
+
+
+
+对于`string`类型，规则则又不一样了。因为string 的 length 永远代表**字节数**，即length后面跟着的内容，截断到多少是需要获取的UTF-8类型数据，比如`hello`是5字节
+
+length远远超过了实际的内容时，可能会导致OOG的DoS
+
+
+
+## Call
+
+我们在solidity中有以下的call类型
+
+- delegate call
+- call
+- static call
+
+这些call会创建新的call frame，从而建立新的stack+memory
+
+而调用internal函数时则不同，它只是简单地使用了`jump`的opcode，跳转执行了另外一个合约中的函数，从而和原函数共享同一个stack+memory
+
 
 
 Yul call function :
@@ -1636,7 +1835,8 @@ contract test1{
 ```
 
 4. 假设我现在有一个slot 按`uint128 x`,`uint32 y` ，请写一段将x,y分别改为99和88的assembly操作。
-5. 
+5. 为什么有时候要写memory-safe这个标识？
+6. memory-safe的gui'ze
 
 
 
