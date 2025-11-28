@@ -1200,7 +1200,7 @@ contract MemExp {
 
 ## 3.1 msg.xxx
 
-假设我的函数有多个call frame，请问msg.data里包含的calldata是哪个call 的信息，是原始fn0函数接受到的calldata还是fn1所收到fn1的calldata？
+假设我的函数有多个内部调用，请问msg.data里包含的calldata是哪个call 的信息，是原始fn0函数接受到的calldata还是fn1所收到fn1的calldata？
 
 答案是：**msg.data 包含的是 fn0（原始入口函数）接收到的 Calldata。**
 
@@ -1251,6 +1251,45 @@ function fn1() public view returns(bytes memory) {
 ```
 
 但在你的示例中，你使用的是直接调用 fn1() 且 fn1 定义为 internal，所以答案肯定是 **fn0 的 calldata**。
+
+
+
+## 3.2 calldata传入
+
+calldata有两种传入方法，对应两种函数签名
+
+比如函数`forward()`就有两种加载data的方法
+
+1. 函数签名中明确calldata: `forward(address to, bytes calldata data)`
+
+2. `forward(address to)` 不明确calldata，但是在汇编中加载
+
+   - ```solidity
+     let free :=mload(0x40)
+     //加载calldata到内存
+     calldatacopy(free, 36, sub(calldatasize(), 36))
+     ```
+
+
+
+
+其中第一种传来的结构是正儿八经ABI编码格式
+
+```bash
+1.四字节函数签名
+2.abi.encode(address)
+3.abi.encode(bytes)
+bytes中编码符合abi对动态编码的格式
+即offset+length+data信息
+0..3   : [ selector (4 bytes) ]           e.g. 0x12345678
+4..35  : [ 000000000000000000000000aabbccddeeff0011223344 ]   // address in 32B slot (左填充)
+36..67 : [ 0000000000000000000000000000000000000000000000000000000000000040 ] // offset = 0x40 (=64)
+68..99 : [ 0000000000000000000000000000000000000000000000000000000000000003 ] // length = 3
+100..131: [ 0x112233000000...000 ] (data数据，一般是填充右边)
+```
+
+而第二种则没有偏移量和长度，是直接传入data数据
+
 
 
 
@@ -1645,6 +1684,14 @@ length远远超过了实际的内容时，可能会导致OOG的DoS
 这些call会创建新的call frame，从而建立新的stack+memory
 
 而调用internal函数时则不同，它只是简单地使用了`jump`的opcode，跳转执行了另外一个合约中的函数，从而和原函数共享同一个stack+memory
+
+
+
+使用call(gas,callee,value,memIn,menSize,retIn,retSize)时，
+
+如果最后两个关于return的参数有写明为非0单位，就会将返回的数据放在对应的内存上。
+
+而如果在这里写成retIn=0, retSize=0，则不会拷贝到内存，而是让返回数据在一个`return data buffer`上暂存，后续可用`returndatacopy(dest, bufferoffset, returndatasize())`将数据拷贝到内存，用于returnhuo'z
 
 
 
