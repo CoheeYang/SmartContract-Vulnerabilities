@@ -127,6 +127,24 @@ $$
 
 
 
+# 代码
+
+项目结构：
+
+[curve-V1的合约](https://github.com/curvefi/curve-contract/tree/master/contracts) 中有几个非常重要的文件夹
+
+- **pool-templates:** 流动性池的通用模板，其中base是最重要的模板，包含了流动性池的基本逻辑
+- **pools:** 实际被部署的池子，比如3pool是以base为基础部署的最经典的流动性池
+- **tokens:** LP token
+
+而总体来说，CurveV1的池子有三类
+
+1. Plain Pool：以base为基础的最基础的池子
+2. Lending Pool：以借贷类代币比如atoken为代币的池子
+3. Metapools：有其他curve池子的LP token和稳定币为代币的池子
+
+
+
 
 
 
@@ -137,3 +155,4 @@ $$
 
 [whitepaper_stableswap.pdf](https://docs.curve.finance/assets/pdf/whitepaper_stableswap.pdf)
 
+[curve-contract/contracts at master · curvefi/curve-contract](https://github.com/curvefi/curve-contract/tree/master/contracts)
